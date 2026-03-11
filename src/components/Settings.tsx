@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Save, AlertTriangle, CheckCircle, ExternalLink, Copy, HelpCircle, FileDown, FileText } from 'lucide-react';
+import { AlertTriangle, CheckCircle, ExternalLink, Copy, FileDown, FileText } from 'lucide-react';
 import { syncWithSheet } from '../services/sheetService';
 import type { Transaction } from '../types';
 

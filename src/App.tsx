@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { Transaction, Goal, TransactionType, FinancialSummary, Member } from './types';
 import { MEMBERS } from './types';
 import { SummaryCards } from './components/SummaryCards';
@@ -13,8 +13,7 @@ import {
   TrendingUp, 
   TrendingDown, 
   Target, 
-  Bot, 
-  Calendar,
+  Bot,
   Trash2,
   Settings as SettingsIcon,
   Cloud,
