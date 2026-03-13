@@ -92,12 +92,12 @@ export default function App() {
     setIsCloudMode(true);
   }, []);
 
-  // Sync on mount if cloud mode
+  // Sync on mount if cloud mode AND user is logged in
   useEffect(() => {
-    if (isCloudMode) {
+    if (isCloudMode && user) {
       handleSync();
     }
-  }, [isCloudMode]);
+  }, [isCloudMode, user]);
 
   // Save data locally on change (as backup/cache)
   useEffect(() => {
