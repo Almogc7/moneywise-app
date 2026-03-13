@@ -8,11 +8,11 @@ import { Goals } from './components/Goals';
 import { Settings } from './components/Settings';
 import { getFinancialAdvice } from './services/geminiService';
 import { syncWithSheet } from './services/sheetService';
-import { 
-  LayoutDashboard, 
-  TrendingUp, 
-  TrendingDown, 
-  Target, 
+import {
+  LayoutDashboard,
+  TrendingUp,
+  TrendingDown,
+  Target,
   Bot,
   Trash2,
   Settings as SettingsIcon,
@@ -33,7 +33,6 @@ import {
 } from 'lucide-react';
 
 const STORAGE_KEY = 'moneywise_data_v1';
-const SETTINGS_KEY = 'moneywise_settings_v1';
 
 // Helper to get previous month YYYY-MM
 const getPreviousMonth = (dateStr: string) => {
@@ -51,12 +50,12 @@ export default function App() {
   const [currentMonth, setCurrentMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
   const [advisorLoading, setAdvisorLoading] = useState(false);
   const [advice, setAdvice] = useState<string>('');
-  
+
   // Dashboard state
   const [expenseChartType, setExpenseChartType] = useState<'pie' | 'bar'>('pie');
 
   // Cloud Sync State
-  const [sheetUrl, setSheetUrl] = useState(import.meta.env.VITE_SCRIPT_URL || '');  const [isCloudMode, setIsCloudMode] = useState(false);
+  const [isCloudMode, setIsCloudMode] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<Date | null>(null);
 
@@ -66,46 +65,34 @@ export default function App() {
   const [showFixedOnly, setShowFixedOnly] = useState(false);
   const [memberFilter, setMemberFilter] = useState<Member | 'all'>('all');
 
-  // Load local data and settings on mount
+  // Load local data on mount
   useEffect(() => {
     const savedData = localStorage.getItem(STORAGE_KEY);
-    const savedSettings = localStorage.getItem(SETTINGS_KEY);
-    
+
     if (savedData) {
       try {
         const parsed = JSON.parse(savedData);
         setTransactions(parsed.transactions || []);
         setGoals(parsed.goals || []);
       } catch (e) {
-        console.error("Failed to parse saved data");
+        console.error('Failed to parse saved data', e);
       }
     }
 
-    if (savedSettings) {
-      const settings = JSON.parse(savedSettings);
-      if (settings.sheetUrl) {
-        setSheetUrl(settings.sheetUrl);
-        setIsCloudMode(true);
-      }
-    }
+    setIsCloudMode(true);
   }, []);
 
   // Sync on mount if cloud mode
   useEffect(() => {
-    if (isCloudMode && sheetUrl) {
+    if (isCloudMode) {
       handleSync();
     }
-  }, [isCloudMode, sheetUrl]);
+  }, [isCloudMode]);
 
   // Save data locally on change (as backup/cache)
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ transactions, goals }));
   }, [transactions, goals]);
-
-  // Save settings
-  useEffect(() => {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ sheetUrl }));
-  }, [sheetUrl]);
 
   // Logic to import fixed expenses
   const importFixedExpenses = async (auto = false) => {
@@ -130,10 +117,10 @@ export default function App() {
 
     // 3. Filter out ones that might already exist (same category + subCategory) in current month (for manual trigger safety)
     const newToCreate = prevMonthFixed.filter(prevT => {
-       const exists = currentMonthExpenses.some(
-         currT => currT.category === prevT.category && currT.subCategory === prevT.subCategory
-       );
-       return !exists;
+      const exists = currentMonthExpenses.some(
+        currT => currT.category === prevT.category && currT.subCategory === prevT.subCategory
+      );
+      return !exists;
     });
 
     if (newToCreate.length === 0) {
@@ -166,7 +153,7 @@ export default function App() {
     if (transactions.length > 0) {
       importFixedExpenses(true);
     }
-  }, [currentMonth, transactions.length]); // Dependency on length ensures it runs after data load
+  }, [currentMonth, transactions.length]);
 
   // Helper to change month
   const changeMonth = (increment: number) => {
@@ -186,7 +173,7 @@ export default function App() {
     const income = filteredTransactions
       .filter(t => t.type === 'income')
       .reduce((acc, curr) => acc + curr.amount, 0);
-    
+
     const expenses = filteredTransactions
       .filter(t => t.type === 'expense')
       .reduce((acc, curr) => acc + curr.amount, 0);
@@ -214,7 +201,7 @@ export default function App() {
   // Derived state for Yearly Chart
   const yearlyData = useMemo(() => {
     const map: Record<string, { name: string; income: number; expense: number }> = {};
-    
+
     transactions.forEach(t => {
       const monthKey = t.date.substring(0, 7); // YYYY-MM
       if (!map[monthKey]) {
@@ -234,32 +221,43 @@ export default function App() {
 
   // Sync Logic
   const handleSync = async () => {
-    if (!sheetUrl) return;
     setIsSyncing(true);
-    const res = await syncWithSheet(sheetUrl, 'get');
-    if (res.status === 'success' && res.data) {
-      // Merge strategy: Overwrite local with cloud for now (Simpler source of truth)
-      if(res.data.transactions) setTransactions(res.data.transactions);
-      if(res.data.goals) setGoals(res.data.goals);
-      setLastSync(new Date());
-    } else {
-      console.error("Sync failed:", res.message);
-      // Optional: alert user only on explicit error if needed, but keeping it silent for auto-sync is better
+
+    try {
+      const res = await syncWithSheet('get');
+
+      if (res.status === 'success' && res.data) {
+        if (res.data.transactions) setTransactions(res.data.transactions);
+        if (res.data.goals) setGoals(res.data.goals);
+        setLastSync(new Date());
+      } else {
+        console.error('Sync failed:', res.message);
+      }
+    } catch (err) {
+      console.error('Sync failed:', err);
+    } finally {
+      setIsSyncing(false);
     }
-    setIsSyncing(false);
   };
 
   const syncDataToCloud = async (newTransactions: Transaction[], newGoals: Goal[]) => {
-    if (!isCloudMode || !sheetUrl) return;
+    if (!isCloudMode) return;
+
     setIsSyncing(true);
+
     try {
-      const res = await syncWithSheet(sheetUrl, 'sync', { transactions: newTransactions, goals: newGoals });
+      const res = await syncWithSheet('sync', {
+        transactions: newTransactions,
+        goals: newGoals
+      });
+
       if (res.status === 'error') {
         throw new Error(res.message);
       }
+
       setLastSync(new Date());
     } catch (err) {
-      console.error("Cloud sync error:", err);
+      console.error('Cloud sync error:', err);
       alert('שגיאה בסנכרון לענן. הנתונים נשמרו מקומית אך לא עודכנו בגיליון.');
     } finally {
       setIsSyncing(false);
@@ -302,7 +300,6 @@ export default function App() {
   };
 
   const deleteGoal = async (id: string) => {
-    // Goals still handled in Goals.tsx, passing callback
     const newGoals = goals.filter(g => g.id !== id);
     setGoals(newGoals);
     await syncDataToCloud(transactions, newGoals);
@@ -315,28 +312,18 @@ export default function App() {
     setAdvisorLoading(false);
   };
 
-  const handleSaveSettings = (url: string) => {
-    setSheetUrl(url);
-    if (url) {
-      setIsCloudMode(true);
-      alert('הגדרות נשמרו! נסה לסנכרן כעת.');
-    } else {
-      setIsCloudMode(false);
-    }
-  };
-
   const handleViewChange = (newView: typeof view) => {
     setView(newView);
-    setEditingTransaction(null); // Clear editing state when changing views
+    setEditingTransaction(null);
     setDeleteConfirmationId(null);
-    setShowFixedOnly(false); // Reset filter when changing view
-    setMemberFilter('all'); // Reset member filter
+    setShowFixedOnly(false);
+    setMemberFilter('all');
   };
 
   // Render Helpers
   const renderTransactionsTable = (type: TransactionType) => {
     let list = filteredTransactions.filter(t => t.type === type);
-    
+
     // Apply Fixed Filter
     if (type === 'expense' && showFixedOnly) {
       list = list.filter(t => t.isFixed);
@@ -365,8 +352,8 @@ export default function App() {
               {list.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="p-8 text-center text-gray-400">
-                    לא נמצאו נתונים 
-                    {showFixedOnly ? ' קבועים' : ''} 
+                    לא נמצאו נתונים
+                    {showFixedOnly ? ' קבועים' : ''}
                     {memberFilter !== 'all' ? ` עבור ${MEMBERS.find(m => m.id === memberFilter)?.label}` : ''}
                     {' '}לחודש זה
                   </td>
@@ -375,12 +362,12 @@ export default function App() {
                 list.map(t => (
                   <tr key={t.id} className={`hover:bg-gray-50 group ${editingTransaction?.id === t.id ? 'bg-blue-50' : ''}`}>
                     <td className="p-4 flex items-center gap-2">
-                       {new Date(t.date).toLocaleDateString('he-IL')}
-                       {t.isFixed && (
-                         <span title="הוצאה קבועה (מתחדשת אוטומטית)" className="text-blue-500 bg-blue-50 p-1 rounded-full">
-                           <Pin size={12} className="fill-blue-500" />
-                         </span>
-                       )}
+                      {new Date(t.date).toLocaleDateString('he-IL')}
+                      {t.isFixed && (
+                        <span title="הוצאה קבועה (מתחדשת אוטומטית)" className="text-blue-500 bg-blue-50 p-1 rounded-full">
+                          <Pin size={12} className="fill-blue-500" />
+                        </span>
+                      )}
                     </td>
                     <td className="p-4">
                       <span className="px-2 py-1 rounded-full bg-gray-100 text-xs font-medium">
@@ -389,50 +376,50 @@ export default function App() {
                     </td>
                     <td className="p-4 text-gray-600">{t.subCategory}</td>
                     <td className="p-4 text-gray-500 text-xs">
-                        {MEMBERS.find(m => m.id === t.member)?.label}
+                      {MEMBERS.find(m => m.id === t.member)?.label}
                     </td>
                     <td className={`p-4 font-bold ${type === 'income' ? 'text-emerald-600' : 'text-red-600'}`}>
                       ₪{t.amount.toLocaleString()}
                     </td>
                     <td className="p-4">
-                        {deleteConfirmationId === t.id ? (
-                          <div className="flex items-center gap-2">
-                             <button 
-                               onClick={() => confirmDeleteTransaction(t.id)} 
-                               className="text-white bg-red-500 hover:bg-red-600 rounded p-1 transition-colors"
-                               title="אשר מחיקה"
-                             >
-                               <Check size={16} />
-                             </button>
-                             <button 
-                               onClick={() => setDeleteConfirmationId(null)} 
-                               className="text-gray-500 hover:bg-gray-100 rounded p-1 transition-colors"
-                               title="ביטול"
-                             >
-                               <X size={16} />
-                             </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                             <button 
-                              onClick={() => {
-                                setEditingTransaction(t);
-                                window.scrollTo({ top: 0, behavior: 'smooth' });
-                              }}
-                              className="text-gray-400 hover:text-blue-600 transition-colors p-1"
-                              title="ערוך"
-                            >
-                              <Pencil size={18} />
-                            </button>
-                            <button 
-                              onClick={() => setDeleteConfirmationId(t.id)} 
-                              className="text-gray-400 hover:text-red-600 transition-colors p-1"
-                              title="מחק שורה"
-                            >
-                                <Trash2 size={18} />
-                            </button>
-                          </div>
-                        )}
+                      {deleteConfirmationId === t.id ? (
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => confirmDeleteTransaction(t.id)}
+                            className="text-white bg-red-500 hover:bg-red-600 rounded p-1 transition-colors"
+                            title="אשר מחיקה"
+                          >
+                            <Check size={16} />
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirmationId(null)}
+                            className="text-gray-500 hover:bg-gray-100 rounded p-1 transition-colors"
+                            title="ביטול"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => {
+                              setEditingTransaction(t);
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                            className="text-gray-400 hover:text-blue-600 transition-colors p-1"
+                            title="ערוך"
+                          >
+                            <Pencil size={18} />
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirmationId(t.id)}
+                            className="text-gray-400 hover:text-red-600 transition-colors p-1"
+                            title="מחק שורה"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -451,53 +438,53 @@ export default function App() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="bg-blue-600 text-white p-2 rounded-lg">
-                <TrendingUp size={20} />
+              <TrendingUp size={20} />
             </div>
             <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 hidden sm:block">
               MoneyWise
             </h1>
           </div>
-          
+
           <div className="flex items-center gap-3">
-             {/* Cloud Status */}
-             <div className="flex items-center gap-2">
-                <button 
-                  onClick={handleSync} 
-                  disabled={isSyncing || !isCloudMode}
-                  className={`p-2 rounded-full transition-colors ${isCloudMode ? 'text-blue-600 hover:bg-blue-50' : 'text-gray-300'}`}
-                  title={lastSync ? `סונכרן לאחרונה: ${lastSync.toLocaleTimeString()}` : 'לא סונכרן'}
-                >
-                   {isSyncing ? <RefreshCw size={18} className="animate-spin"/> : (isCloudMode ? <Cloud size={18}/> : <CloudOff size={18}/>)}
-                </button>
-             </div>
+            {/* Cloud Status */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSync}
+                disabled={isSyncing || !isCloudMode}
+                className={`p-2 rounded-full transition-colors ${isCloudMode ? 'text-blue-600 hover:bg-blue-50' : 'text-gray-300'}`}
+                title={lastSync ? `סונכרן לאחרונה: ${lastSync.toLocaleTimeString()}` : 'לא סונכרן'}
+              >
+                {isSyncing ? <RefreshCw size={18} className="animate-spin" /> : (isCloudMode ? <Cloud size={18} /> : <CloudOff size={18} />)}
+              </button>
+            </div>
 
-             <div className="h-6 w-px bg-gray-200 mx-1"></div>
+            <div className="h-6 w-px bg-gray-200 mx-1"></div>
 
-             {/* Date Controls */}
-             <div className="flex items-center bg-white rounded-lg shadow-sm border border-gray-200 p-1" dir="ltr">
-               <button 
-                 onClick={() => changeMonth(-1)}
-                 className="p-1 hover:bg-gray-100 rounded text-gray-600 transition-colors"
-                 title="חודש קודם"
-               >
-                 <ChevronLeft size={20} />
-               </button>
-               
-               <input 
-                  type="month" 
-                  value={currentMonth} 
-                  onChange={(e) => setCurrentMonth(e.target.value)}
-                  className="bg-transparent text-sm font-medium focus:outline-none cursor-pointer border-none text-center w-32"
-               />
+            {/* Date Controls */}
+            <div className="flex items-center bg-white rounded-lg shadow-sm border border-gray-200 p-1" dir="ltr">
+              <button
+                onClick={() => changeMonth(-1)}
+                className="p-1 hover:bg-gray-100 rounded text-gray-600 transition-colors"
+                title="חודש קודם"
+              >
+                <ChevronLeft size={20} />
+              </button>
 
-               <button 
-                 onClick={() => changeMonth(1)}
-                 className="p-1 hover:bg-gray-100 rounded text-gray-600 transition-colors"
-                 title="חודש הבא"
-               >
-                 <ChevronRight size={20} />
-               </button>
-             </div>
+              <input
+                type="month"
+                value={currentMonth}
+                onChange={(e) => setCurrentMonth(e.target.value)}
+                className="bg-transparent text-sm font-medium focus:outline-none cursor-pointer border-none text-center w-32"
+              />
+
+              <button
+                onClick={() => changeMonth(1)}
+                className="p-1 hover:bg-gray-100 rounded text-gray-600 transition-colors"
+                title="חודש הבא"
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -515,10 +502,10 @@ export default function App() {
           ].map(item => (
             <button
               key={item.id}
-              onClick={() => handleViewChange(item.id as any)}
+              onClick={() => handleViewChange(item.id as typeof view)}
               className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                view === item.id 
-                  ? 'bg-blue-600 text-white shadow-md' 
+                view === item.id
+                  ? 'bg-blue-600 text-white shadow-md'
                   : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
               }`}
             >
@@ -530,41 +517,41 @@ export default function App() {
       </nav>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        
+
         {/* Dashboard View */}
         {view === 'dashboard' && (
           <div className="animate-fade-in space-y-6">
-            <SummaryCards 
-              income={summary.totalIncome} 
-              expense={summary.totalExpenses} 
-              balance={summary.balance} 
+            <SummaryCards
+              income={summary.totalIncome}
+              expense={summary.totalExpenses}
+              balance={summary.balance}
             />
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="font-bold text-gray-800">התפלגות הוצאות</h3>
                   <div className="flex bg-gray-100 rounded-lg p-1">
-                     <button 
-                       onClick={() => setExpenseChartType('pie')}
-                       className={`p-1 rounded ${expenseChartType === 'pie' ? 'bg-white shadow text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
-                       title="תרשים עוגה"
-                     >
-                       <PieChart size={16} />
-                     </button>
-                     <button 
-                       onClick={() => setExpenseChartType('bar')}
-                       className={`p-1 rounded ${expenseChartType === 'bar' ? 'bg-white shadow text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
-                       title="גרף עמודות"
-                     >
-                       <BarChart2 size={16} />
-                     </button>
+                    <button
+                      onClick={() => setExpenseChartType('pie')}
+                      className={`p-1 rounded ${expenseChartType === 'pie' ? 'bg-white shadow text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                      title="תרשים עוגה"
+                    >
+                      <PieChart size={16} />
+                    </button>
+                    <button
+                      onClick={() => setExpenseChartType('bar')}
+                      className={`p-1 rounded ${expenseChartType === 'bar' ? 'bg-white shadow text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                      title="גרף עמודות"
+                    >
+                      <BarChart2 size={16} />
+                    </button>
                   </div>
                 </div>
                 {expenseChartType === 'pie' ? (
-                   <ExpensePieChart data={summary.expensesByCategory} />
+                  <ExpensePieChart data={summary.expensesByCategory} />
                 ) : (
-                   <CategoryBarChart data={summary.expensesByCategory} />
+                  <CategoryBarChart data={summary.expensesByCategory} />
                 )}
               </div>
               <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
@@ -575,8 +562,8 @@ export default function App() {
 
             {/* Yearly Trend Chart */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-               <h3 className="font-bold text-gray-800 mb-4">מגמה שנתית (12 חודשים אחרונים)</h3>
-               <YearlyTrendChart data={yearlyData} />
+              <h3 className="font-bold text-gray-800 mb-4">מגמה שנתית (12 חודשים אחרונים)</h3>
+              <YearlyTrendChart data={yearlyData} />
             </div>
           </div>
         )}
@@ -584,12 +571,12 @@ export default function App() {
         {/* Income View */}
         {view === 'income' && (
           <div className="animate-fade-in">
-            <TransactionForm 
-              onAdd={addTransaction} 
+            <TransactionForm
+              onAdd={addTransaction}
               onUpdate={updateTransaction}
               onCancelEdit={() => setEditingTransaction(null)}
               editingTransaction={editingTransaction?.type === 'income' ? editingTransaction : null}
-              type="income" 
+              type="income"
               transactions={transactions}
             />
             {renderTransactionsTable('income')}
@@ -599,66 +586,66 @@ export default function App() {
         {/* Expenses View */}
         {view === 'expenses' && (
           <div className="animate-fade-in">
-             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
-                <h2 className="text-lg font-bold text-gray-700 hidden md:block">ניהול הוצאות</h2>
-                
-                <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 items-center">
-                  {/* Member Filter */}
-                  <div className="relative">
-                    <select
-                      value={memberFilter}
-                      onChange={(e) => setMemberFilter(e.target.value as Member | 'all')}
-                      className="appearance-none bg-white border border-gray-200 text-gray-700 py-2 pr-8 pl-4 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer hover:border-blue-400"
-                    >
-                      <option value="all">כל המשתמשים</option>
-                      {MEMBERS.map(m => (
-                        <option key={m.id} value={m.id}>{m.label}</option>
-                      ))}
-                    </select>
-                    <Users size={16} className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
-                  </div>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+              <h2 className="text-lg font-bold text-gray-700 hidden md:block">ניהול הוצאות</h2>
 
-                  <div className="h-6 w-px bg-gray-200 mx-1"></div>
-
-                  <button 
-                    onClick={() => setShowFixedOnly(!showFixedOnly)}
-                    className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg transition-colors border whitespace-nowrap ${showFixedOnly ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+              <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 items-center">
+                {/* Member Filter */}
+                <div className="relative">
+                  <select
+                    value={memberFilter}
+                    onChange={(e) => setMemberFilter(e.target.value as Member | 'all')}
+                    className="appearance-none bg-white border border-gray-200 text-gray-700 py-2 pr-8 pl-4 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer hover:border-blue-400"
                   >
-                    <Filter size={16} />
-                    {showFixedOnly ? 'רק קבועות' : 'סנן קבועות'}
-                  </button>
-
-                  <button 
-                    onClick={() => importFixedExpenses(false)}
-                    className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 px-3 py-2 rounded-lg transition-colors whitespace-nowrap mr-auto md:mr-0"
-                  >
-                    <Copy size={16} />
-                    ייבא קבועות
-                  </button>
+                    <option value="all">כל המשתמשים</option>
+                    {MEMBERS.map(m => (
+                      <option key={m.id} value={m.id}>{m.label}</option>
+                    ))}
+                  </select>
+                  <Users size={16} className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
                 </div>
-             </div>
-             
-             <div className={showFixedOnly ? 'opacity-50 pointer-events-none filter blur-[1px]' : ''}>
-              <TransactionForm 
-                onAdd={addTransaction} 
+
+                <div className="h-6 w-px bg-gray-200 mx-1"></div>
+
+                <button
+                  onClick={() => setShowFixedOnly(!showFixedOnly)}
+                  className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg transition-colors border whitespace-nowrap ${showFixedOnly ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                >
+                  <Filter size={16} />
+                  {showFixedOnly ? 'רק קבועות' : 'סנן קבועות'}
+                </button>
+
+                <button
+                  onClick={() => importFixedExpenses(false)}
+                  className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 px-3 py-2 rounded-lg transition-colors whitespace-nowrap mr-auto md:mr-0"
+                >
+                  <Copy size={16} />
+                  ייבא קבועות
+                </button>
+              </div>
+            </div>
+
+            <div className={showFixedOnly ? 'opacity-50 pointer-events-none filter blur-[1px]' : ''}>
+              <TransactionForm
+                onAdd={addTransaction}
                 onUpdate={updateTransaction}
                 onCancelEdit={() => setEditingTransaction(null)}
                 editingTransaction={editingTransaction?.type === 'expense' ? editingTransaction : null}
-                type="expense" 
+                type="expense"
                 transactions={transactions}
               />
-             </div>
-             
-             {showFixedOnly && (
-               <div className="bg-blue-50 text-blue-800 text-sm p-3 rounded-lg mb-4 flex items-start gap-2">
-                 <Pin size={16} className="mt-0.5" />
-                 <div>
-                   <strong>מצב סינון:</strong> מוצגות רק הוצאות שסומנו כ-"קבועות". 
-                   <br/>
-                   כדי לבטל הוצאה קבועה: לחץ על העיפרון, בטל את ה-Check Box של "הוצאה קבועה" ושמור.
-                 </div>
-               </div>
-             )}
+            </div>
+
+            {showFixedOnly && (
+              <div className="bg-blue-50 text-blue-800 text-sm p-3 rounded-lg mb-4 flex items-start gap-2">
+                <Pin size={16} className="mt-0.5" />
+                <div>
+                  <strong>מצב סינון:</strong> מוצגות רק הוצאות שסומנו כ-"קבועות".
+                  <br />
+                  כדי לבטל הוצאה קבועה: לחץ על העיפרון, בטל את ה-Check Box של "הוצאה קבועה" ושמור.
+                </div>
+              </div>
+            )}
 
             {renderTransactionsTable('expense')}
           </div>
@@ -667,11 +654,11 @@ export default function App() {
         {/* Goals View */}
         {view === 'goals' && (
           <div className="animate-fade-in">
-            <Goals 
-                goals={goals} 
-                onAddGoal={addGoal} 
-                onUpdateGoal={updateGoal} 
-                onDeleteGoal={deleteGoal}
+            <Goals
+              goals={goals}
+              onAddGoal={addGoal}
+              onUpdateGoal={updateGoal}
+              onDeleteGoal={deleteGoal}
             />
           </div>
         )}
@@ -680,81 +667,78 @@ export default function App() {
         {view === 'advisor' && (
           <div className="animate-fade-in max-w-2xl mx-auto">
             <div className="bg-white rounded-2xl shadow-sm border border-indigo-100 overflow-hidden">
-                <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-8 text-white text-center">
-                    <Bot size={48} className="mx-auto mb-4 opacity-90" />
-                    <h2 className="text-2xl font-bold mb-2">היועץ הפיננסי האישי שלכם</h2>
-                    <p className="opacity-90">השתמשו בבינה מלאכותית כדי לנתח את התקציב שלכם ולקבל המלצות לשיפור.</p>
-                </div>
-                
-                <div className="p-8">
-                    {!advice && !advisorLoading && (
-                        <div className="text-center">
-                            <p className="text-gray-600 mb-6">לחצו על הכפתור למטה כדי לסרוק את הנתונים הנוכחיים שלכם ולקבל דוח מותאם אישית.</p>
-                            <button 
-                                onClick={handleGetAdvice}
-                                className="bg-indigo-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-indigo-700 transition-transform active:scale-95"
-                            >
-                                נתח את התקציב שלי
-                            </button>
-                        </div>
-                    )}
+              <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-8 text-white text-center">
+                <Bot size={48} className="mx-auto mb-4 opacity-90" />
+                <h2 className="text-2xl font-bold mb-2">היועץ הפיננסי האישי שלכם</h2>
+                <p className="opacity-90">השתמשו בבינה מלאכותית כדי לנתח את התקציב שלכם ולקבל המלצות לשיפור.</p>
+              </div>
 
-                    {advisorLoading && (
-                        <div className="flex flex-col items-center justify-center py-8">
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
-                            <p className="text-indigo-600 font-medium">היועץ חושב...</p>
-                        </div>
-                    )}
+              <div className="p-8">
+                {!advice && !advisorLoading && (
+                  <div className="text-center">
+                    <p className="text-gray-600 mb-6">לחצו על הכפתור למטה כדי לסרוק את הנתונים הנוכחיים שלכם ולקבל דוח מותאם אישית.</p>
+                    <button
+                      onClick={handleGetAdvice}
+                      className="bg-indigo-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-indigo-700 transition-transform active:scale-95"
+                    >
+                      נתח את התקציב שלי
+                    </button>
+                  </div>
+                )}
 
-                    {advice && !advisorLoading && (
-                        <div className="bg-indigo-50 p-6 rounded-xl border border-indigo-100">
-                            <h3 className="font-bold text-indigo-900 mb-4 text-lg">המלצות עבורכם:</h3>
-                            <div className="prose prose-indigo text-gray-800 whitespace-pre-wrap">
-                                {advice}
-                            </div>
-                            <button 
-                                onClick={handleGetAdvice}
-                                className="mt-6 text-sm text-indigo-600 font-medium hover:underline"
-                            >
-                                נסה שוב / רענן המלצות
-                            </button>
-                        </div>
-                    )}
-                </div>
+                {advisorLoading && (
+                  <div className="flex flex-col items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+                    <p className="text-indigo-600 font-medium">היועץ חושב...</p>
+                  </div>
+                )}
+
+                {advice && !advisorLoading && (
+                  <div className="bg-indigo-50 p-6 rounded-xl border border-indigo-100">
+                    <h3 className="font-bold text-indigo-900 mb-4 text-lg">המלצות עבורכם:</h3>
+                    <div className="prose prose-indigo text-gray-800 whitespace-pre-wrap">
+                      {advice}
+                    </div>
+                    <button
+                      onClick={handleGetAdvice}
+                      className="mt-6 text-sm text-indigo-600 font-medium hover:underline"
+                    >
+                      נסה שוב / רענן המלצות
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="mt-8 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                <h3 className="font-bold text-gray-800 mb-4">טיפים להתנהלות זוגית נכונה</h3>
-                <ul className="space-y-3 text-sm text-gray-600">
-                    <li className="flex gap-2 items-start">
-                        <span className="text-green-500 font-bold">✓</span>
-                        קבעו "דייט פיננסי" אחת לחודש לעבור על ההוצאות יחד.
-                    </li>
-                    <li className="flex gap-2 items-start">
-                        <span className="text-green-500 font-bold">✓</span>
-                        הגדירו סכום "בזבוזים אישי" לכל אחד מכם שלא דורש דיווח.
-                    </li>
-                    <li className="flex gap-2 items-start">
-                        <span className="text-green-500 font-bold">✓</span>
-                        לפני קנייה גדולה (מעל 500 ש"ח), המתינו 24 שעות והתייעצו.
-                    </li>
-                </ul>
+              <h3 className="font-bold text-gray-800 mb-4">טיפים להתנהלות זוגית נכונה</h3>
+              <ul className="space-y-3 text-sm text-gray-600">
+                <li className="flex gap-2 items-start">
+                  <span className="text-green-500 font-bold">✓</span>
+                  קבעו "דייט פיננסי" אחת לחודש לעבור על ההוצאות יחד.
+                </li>
+                <li className="flex gap-2 items-start">
+                  <span className="text-green-500 font-bold">✓</span>
+                  הגדירו סכום "בזבוזים אישי" לכל אחד מכם שלא דורש דיווח.
+                </li>
+                <li className="flex gap-2 items-start">
+                  <span className="text-green-500 font-bold">✓</span>
+                  לפני קנייה גדולה (מעל 500 ש"ח), המתינו 24 שעות והתייעצו.
+                </li>
+              </ul>
             </div>
           </div>
         )}
 
         {/* Settings View */}
         {view === 'settings' && (
-          <Settings 
-            sheetUrl={sheetUrl} 
-            onSave={handleSaveSettings} 
+          <Settings
             onSync={handleSync}
             isCloudMode={isCloudMode}
             transactions={transactions}
             currentMonth={currentMonth}
           />
         )}
-
       </main>
     </div>
   );

@@ -10,23 +10,19 @@ interface SheetResponse {
 }
 
 export const syncWithSheet = async (
-  scriptUrl: string, 
-  action: 'get' | 'sync' | 'setup', 
-  payload?: { transactions?: Transaction[], goals?: Goal[] }
+  action: 'get' | 'sync' | 'setup',
+  payload?: { transactions?: Transaction[]; goals?: Goal[] }
 ): Promise<SheetResponse> => {
   try {
-    // We use a POST request for everything to avoid caching issues and handle larger payloads
-    // The Apps Script must be deployed as "Me" (the user) and "Anyone" access to handle CORS via the script logic
-    const response = await fetch(scriptUrl, {
+    const response = await fetch('/api/sheet', {
       method: 'POST',
-      mode: 'cors',
       headers: {
-        'Content-Type': 'text/plain;charset=utf-8', // Avoids OPTION preflight issues in some GAS deployments
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         action,
-        ...payload
-      })
+        ...payload,
+      }),
     });
 
     if (!response.ok) {
@@ -36,7 +32,10 @@ export const syncWithSheet = async (
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("Sheet Sync Error:", error);
-    return { status: 'error', message: error instanceof Error ? error.message : "Unknown error" };
+    console.error('Sheet Sync Error:', error);
+    return {
+      status: 'error',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    };
   }
 };
