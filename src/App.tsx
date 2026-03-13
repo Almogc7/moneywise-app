@@ -257,7 +257,7 @@ export default function App() {
   };
 
   const syncDataToCloud = async (newTransactions: Transaction[], newGoals: Goal[]) => {
-    if (!isCloudMode) return;
+    if (!isCloudMode || !user) return;
 
     setIsSyncing(true);
 
