@@ -1,13 +1,9 @@
 import React, { useState } from 'react';
-import { AlertTriangle, CheckCircle, ExternalLink, Copy, FileDown, FileText } from 'lucide-react';
+import { CheckCircle, ExternalLink, Copy } from 'lucide-react';
 import { syncWithSheet } from '../services/sheetService';
-import type { Transaction } from '../types';
 
 interface Props {
   onSync: () => void;
-  isCloudMode: boolean;
-  transactions?: Transaction[];
-  currentMonth?: string;
 }
 
 const APPS_SCRIPT_CODE = `
@@ -199,10 +195,7 @@ function setupSheet(ss) {
 `;
 
 export const Settings: React.FC<Props> = ({
-  onSync,
-  isCloudMode,
-  transactions = [],
-  currentMonth
+  onSync
 }) => {
 
   const [copied, setCopied] = useState(false);

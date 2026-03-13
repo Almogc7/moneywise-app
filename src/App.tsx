@@ -734,9 +734,6 @@ export default function App() {
         {view === 'settings' && (
           <Settings
             onSync={handleSync}
-            isCloudMode={isCloudMode}
-            transactions={transactions}
-            currentMonth={currentMonth}
           />
         )}
       </main>
