@@ -32,6 +32,12 @@ import {
   ChevronRight
 } from 'lucide-react';
 
+declare global {
+  interface Window {
+    google: any;
+  }
+}
+
 const STORAGE_KEY = 'moneywise_data_v1';
 
 // Helper to get previous month YYYY-MM
@@ -64,6 +70,10 @@ export default function App() {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [showFixedOnly, setShowFixedOnly] = useState(false);
   const [memberFilter, setMemberFilter] = useState<Member | 'all'>('all');
+
+  // Auth State
+  const [user, setUser] = useState<any>(null);
+  const allowedEmails = ['almogcohen701@gmail.com', 'amitshats@gmail.com'];
 
   // Load local data on mount
   useEffect(() => {
@@ -223,6 +233,12 @@ export default function App() {
   const handleSync = async () => {
     setIsSyncing(true);
 
+    if (!user) {
+      alert('Please login with Google first to sync data.');
+      setIsSyncing(false);
+      return;
+    }
+
     try {
       const res = await syncWithSheet('get');
 
@@ -318,6 +334,46 @@ export default function App() {
     setDeleteConfirmationId(null);
     setShowFixedOnly(false);
     setMemberFilter('all');
+  };
+
+  // Auth Handlers
+  useEffect(() => {
+    const initializeGoogleAuth = () => {
+      if (window.google && window.google.accounts) {
+        window.google.accounts.id.initialize({
+          client_id: process.env.REACT_APP_GOOGLE_CLIENT_ID || 'YOUR_CLIENT_ID', // Set in .env or Vercel env
+          callback: handleCredentialResponse
+        });
+      }
+    };
+
+    if (window.google) {
+      initializeGoogleAuth();
+    } else {
+      window.addEventListener('load', initializeGoogleAuth);
+    }
+  }, []);
+
+  const handleCredentialResponse = (response: any) => {
+    const decoded = JSON.parse(atob(response.credential.split('.')[1]));
+    if (allowedEmails.includes(decoded.email)) {
+      setUser(decoded);
+    } else {
+      alert('Access denied. This app is only for authorized users.');
+    }
+  };
+
+  const handleLogin = () => {
+    if (window.google && window.google.accounts) {
+      window.google.accounts.id.prompt();
+    }
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    if (window.google && window.google.accounts) {
+      window.google.accounts.id.disableAutoSelect();
+    }
   };
 
   // Render Helpers
@@ -450,9 +506,9 @@ export default function App() {
             <div className="flex items-center gap-2">
               <button
                 onClick={handleSync}
-                disabled={isSyncing || !isCloudMode}
-                className={`p-2 rounded-full transition-colors ${isCloudMode ? 'text-blue-600 hover:bg-blue-50' : 'text-gray-300'}`}
-                title={lastSync ? `סונכרן לאחרונה: ${lastSync.toLocaleTimeString()}` : 'לא סונכרן'}
+                disabled={isSyncing || !isCloudMode || !user}
+                className={`p-2 rounded-full transition-colors ${isCloudMode && user ? 'text-blue-600 hover:bg-blue-50' : 'text-gray-300'}`}
+                title={!user ? 'Login required to sync' : lastSync ? `סונכרן לאחרונה: ${lastSync.toLocaleTimeString()}` : 'לא סונכרן'}
               >
                 {isSyncing ? <RefreshCw size={18} className="animate-spin" /> : (isCloudMode ? <Cloud size={18} /> : <CloudOff size={18} />)}
               </button>
@@ -485,6 +541,14 @@ export default function App() {
                 <ChevronRight size={20} />
               </button>
             </div>
+            {user ? (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">{user.name}</span>
+                <button onClick={handleLogout} className="text-sm text-red-600 hover:underline">Logout</button>
+              </div>
+            ) : (
+              <button onClick={handleLogin} className="text-sm bg-blue-600 text-white px-3 py-1 rounded">Login with Google</button>
+            )}
           </div>
         </div>
       </header>
