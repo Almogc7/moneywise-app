@@ -265,7 +265,11 @@ export default function App() {
     // 2. Find fixed expenses from previous month
     const prevMonth = getPreviousMonth(currentMonth);
     const prevMonthFixed = transactions.filter(
-      t => t.date.startsWith(prevMonth) && t.type === 'expense' && t.isFixed
+      t =>
+        t.date.startsWith(prevMonth) &&
+        t.type === 'expense' &&
+        t.isFixed &&
+        (!t.fixedUntil || t.fixedUntil >= currentMonth)
     );
 
     if (prevMonthFixed.length === 0) {
@@ -481,7 +485,8 @@ export default function App() {
       t.subCategory === baseTransaction.subCategory &&
       t.member === baseTransaction.member &&
       (t.paymentMethod || '') === (baseTransaction.paymentMethod || '') &&
-      (t.cardType || '') === (baseTransaction.cardType || '')
+      (t.cardType || '') === (baseTransaction.cardType || '') &&
+      (t.fixedUntil || '') === (baseTransaction.fixedUntil || '')
     );
   };
 

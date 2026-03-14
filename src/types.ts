@@ -15,6 +15,7 @@ export interface Transaction {
   paymentMethod?: PaymentMethod; // Only for expenses generally
   cardType?: CardType; // Only if paymentMethod is credit
   isFixed?: boolean; // For expenses
+  fixedUntil?: string; // YYYY-MM, inclusive end month for fixed expenses
   notes: string;
 }
 

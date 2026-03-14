@@ -123,6 +123,7 @@ function updateData(ss, transactions, goals) {
           t.paymentMethod || '',
           t.cardType || '',
           t.isFixed || false,
+          t.fixedUntil || '',
           t.notes || ''
         ];
 
@@ -175,6 +176,7 @@ function setupSheet(ss) {
       'paymentMethod',
       'cardType',
       'isFixed',
+      'fixedUntil',
       'notes'
     ]);
 
@@ -287,7 +289,7 @@ export const Settings: React.FC<Props> = ({
       return;
     }
 
-    const headers = ['Date', 'Type', 'Category', 'SubCategory', 'Amount', 'Member', 'PaymentMethod', 'CardType', 'IsFixed', 'Notes'];
+    const headers = ['Date', 'Type', 'Category', 'SubCategory', 'Amount', 'Member', 'PaymentMethod', 'CardType', 'IsFixed', 'FixedUntil', 'Notes'];
     const csvContent = '\uFEFF' + [
       headers.join(','),
       ...dataToExport.map((t) => [
@@ -300,6 +302,7 @@ export const Settings: React.FC<Props> = ({
         t.paymentMethod || '-',
         t.cardType || '-',
         t.isFixed ? 'כן' : 'לא',
+        t.fixedUntil || '-',
         `"${(t.notes || '').replace(/"/g, '""')}"`
       ].join(','))
     ].join('\n');

@@ -31,6 +31,7 @@ export const TransactionForm: React.FC<Props> = ({ onAdd, onUpdate, onCancelEdit
     paymentMethod: 'credit',
     cardType: '',
     isFixed: false,
+    fixedUntil: '',
     notes: ''
   };
 
@@ -58,6 +59,7 @@ export const TransactionForm: React.FC<Props> = ({ onAdd, onUpdate, onCancelEdit
         paymentMethod: editingTransaction.paymentMethod || 'credit',
         cardType: editingTransaction.cardType || '',
         isFixed: editingTransaction.isFixed || false,
+        fixedUntil: editingTransaction.fixedUntil || '',
         notes: editingTransaction.notes
       });
       setIsOpen(true);
@@ -85,6 +87,16 @@ export const TransactionForm: React.FC<Props> = ({ onAdd, onUpdate, onCancelEdit
       if (type === 'expense') {
         transactionData.paymentMethod = formData.paymentMethod;
         transactionData.isFixed = formData.isFixed;
+        if (formData.isFixed) {
+          if (!formData.fixedUntil) {
+            alert('להוצאה קבועה חייבים לבחור "עד חודש".');
+            setIsSubmitting(false);
+            return;
+          }
+          transactionData.fixedUntil = formData.fixedUntil;
+        } else {
+          transactionData.fixedUntil = undefined;
+        }
         if (formData.paymentMethod === 'credit') {
            transactionData.cardType = formData.cardType;
         }
@@ -370,11 +382,31 @@ export const TransactionForm: React.FC<Props> = ({ onAdd, onUpdate, onCancelEdit
                type="checkbox"
                id="isFixed"
                checked={formData.isFixed}
-               onChange={e => setFormData({...formData, isFixed: e.target.checked})}
+               onChange={e => setFormData({
+                 ...formData,
+                 isFixed: e.target.checked,
+                 fixedUntil: e.target.checked
+                   ? (formData.fixedUntil || formData.date.slice(0, 7))
+                   : ''
+               })}
                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
              />
              <label htmlFor="isFixed" className="text-sm text-gray-700">זוהי הוצאה קבועה חודשית (כמו שכ״ד, ארנונה, נטפליקס)</label>
            </div>
+        )}
+
+        {type === 'expense' && formData.isFixed && (
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">עד חודש (כולל)</label>
+            <input
+              type="month"
+              required
+              value={formData.fixedUntil}
+              onChange={e => setFormData({ ...formData, fixedUntil: e.target.value })}
+              className="w-full md:w-60 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+            <p className="text-xs text-gray-500 mt-1">ההוצאה תיווצר אוטומטית עד סוף החודש שתבחר.</p>
+          </div>
         )}
 
         <div className="md:col-span-2 flex justify-end gap-3 mt-4 pt-2 border-t">
