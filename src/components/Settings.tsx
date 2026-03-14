@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import { CheckCircle, ExternalLink, Copy, FileDown, FileText } from 'lucide-react';
 import { syncWithSheet } from '../services/sheetService';
-import type { Transaction } from '../types';
+import type { Transaction, BudgetLimit } from '../types';
+import { BudgetLimits } from './BudgetLimits';
 
 interface Props {
   onSync: () => void;
   transactions: Transaction[];
   currentMonth: string;
+  budgetLimits: BudgetLimit[];
+  expensesByCategory: { name: string; value: number }[];
+  onSaveBudgets: (limits: BudgetLimit[]) => void;
 }
 
 const APPS_SCRIPT_CODE = `
@@ -200,7 +204,10 @@ function setupSheet(ss) {
 export const Settings: React.FC<Props> = ({
   onSync,
   transactions,
-  currentMonth
+  currentMonth,
+  budgetLimits,
+  expensesByCategory,
+  onSaveBudgets
 }) => {
 
   const [copied, setCopied] = useState(false);
@@ -294,6 +301,12 @@ export const Settings: React.FC<Props> = ({
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 p-4">
+
+      <BudgetLimits
+        budgetLimits={budgetLimits}
+        expensesByCategory={expensesByCategory}
+        onSave={onSaveBudgets}
+      />
 
       <div className="bg-white rounded-xl shadow-sm border p-6">
 

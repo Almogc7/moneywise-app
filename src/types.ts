@@ -34,6 +34,11 @@ export interface FinancialSummary {
   expensesByCategory: { name: string; value: number }[];
 }
 
+export interface BudgetLimit {
+  category: string;
+  limit: number;
+}
+
 export const CATEGORIES = {
   income: ['משכורת', 'בונוס', 'החזר', 'קצבת ילדים', 'השקעות', 'אחר'],
   expense: [

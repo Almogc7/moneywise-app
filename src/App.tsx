@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import type { Transaction, Goal, TransactionType, FinancialSummary, Member } from './types';
+import type { Transaction, Goal, TransactionType, FinancialSummary, Member, BudgetLimit } from './types';
 import { MEMBERS } from './types';
 import { SummaryCards } from './components/SummaryCards';
 import { TransactionForm } from './components/TransactionForm';
@@ -29,7 +29,8 @@ import {
   Filter,
   Users,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ShieldAlert
 } from 'lucide-react';
 
 declare global {
@@ -40,6 +41,7 @@ declare global {
 
 const STORAGE_KEY = 'moneywise_data_v1';
 const AUTH_TOKEN_STORAGE_KEY = 'moneywise_google_id_token';
+const BUDGETS_KEY = 'moneywise_budgets_v1';
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 const renderGoogleSignInButton = (elementId: string, width: number) => {
@@ -113,6 +115,7 @@ export default function App() {
 
   // Auth State
   const [user, setUser] = useState<any>(null);
+  const [budgetLimits, setBudgetLimits] = useState<BudgetLimit[]>([]);
 
   // Keep cloud mode enabled by default.
   useEffect(() => {
@@ -138,6 +141,15 @@ export default function App() {
         setGoals(parsed.goals || []);
       } catch (e) {
         console.error('Failed to parse saved data', e);
+      }
+    }
+
+    const savedBudgets = localStorage.getItem(BUDGETS_KEY);
+    if (savedBudgets) {
+      try {
+        setBudgetLimits(JSON.parse(savedBudgets));
+      } catch (e) {
+        console.error('Failed to parse budget limits', e);
       }
     }
   }, [user]);
@@ -372,6 +384,11 @@ export default function App() {
     const newGoals = goals.filter(g => g.id !== id);
     setGoals(newGoals);
     await syncDataToCloud(transactions, newGoals);
+  };
+
+  const handleSaveBudgets = (limits: BudgetLimit[]) => {
+    setBudgetLimits(limits);
+    localStorage.setItem(BUDGETS_KEY, JSON.stringify(limits));
   };
 
   const handleGetAdvice = async () => {
@@ -736,6 +753,42 @@ export default function App() {
               <h3 className="font-bold text-gray-800 mb-4">מגמה שנתית (12 חודשים אחרונים)</h3>
               <YearlyTrendChart data={yearlyData} />
             </div>
+
+            {/* Budget limits compact view */}
+            {budgetLimits.length > 0 && (
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  <ShieldAlert size={18} className="text-orange-500" />
+                  סטטוס תקציב חודשי
+                </h3>
+                <div className="space-y-3">
+                  {budgetLimits.map(l => {
+                    const spent = summary.expensesByCategory.find(e => e.name === l.category)?.value ?? 0;
+                    const pct = Math.min((spent / l.limit) * 100, 100);
+                    const isOver = spent > l.limit;
+                    const isWarning = pct >= 80 && !isOver;
+                    return (
+                      <div key={l.category}>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="font-medium text-gray-700">{l.category}</span>
+                          <span className={isOver ? 'text-red-600 font-bold' : isWarning ? 'text-orange-600 font-medium' : 'text-gray-500'}>
+                            {isOver
+                              ? `חריגה ₪${(spent - l.limit).toLocaleString()}`
+                              : `₪${spent.toLocaleString()} / ₪${l.limit.toLocaleString()}`}
+                          </span>
+                        </div>
+                        <div className="bg-gray-100 rounded-full h-2.5">
+                          <div
+                            className={`h-2.5 rounded-full transition-all ${isOver ? 'bg-red-500' : isWarning ? 'bg-orange-400' : 'bg-emerald-500'}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -902,6 +955,9 @@ export default function App() {
             onSync={handleSync}
             transactions={transactions}
             currentMonth={currentMonth}
+            budgetLimits={budgetLimits}
+            expensesByCategory={summary.expensesByCategory}
+            onSaveBudgets={handleSaveBudgets}
           />
         )}
       </main>

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { Transaction, TransactionType } from '../types';
 import { CATEGORIES, MEMBERS, PAYMENT_METHODS, CARD_TYPES } from '../types';
-import { Plus, Loader2, Save, X } from 'lucide-react';
+import { Plus, Loader2, Save, X, MessageSquare, Sparkles } from 'lucide-react';
+import { parseTransactionFromSMS } from '../services/geminiService';
 
 interface Props {
   onAdd: (t: Omit<Transaction, 'id'>) => Promise<void> | void;
@@ -15,6 +16,10 @@ interface Props {
 export const TransactionForm: React.FC<Props> = ({ onAdd, onUpdate, onCancelEdit, editingTransaction, type, transactions = [] }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSmsPanel, setShowSmsPanel] = useState(false);
+  const [smsText, setSmsText] = useState('');
+  const [isSmsLoading, setIsSmsLoading] = useState(false);
+  const [smsError, setSmsError] = useState('');
   
   const defaultFormData = {
     date: new Date().toISOString().split('T')[0],
@@ -99,6 +104,29 @@ export const TransactionForm: React.FC<Props> = ({ onAdd, onUpdate, onCancelEdit
       console.error(error);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleSmsFill = async () => {
+    if (!smsText.trim()) return;
+    setIsSmsLoading(true);
+    setSmsError('');
+    try {
+      const parsed = await parseTransactionFromSMS(smsText);
+      setFormData(prev => ({
+        ...prev,
+        ...(parsed.amount ? { amount: parsed.amount } : {}),
+        ...(parsed.category ? { category: parsed.category } : {}),
+        ...(parsed.subCategory ? { subCategory: parsed.subCategory } : {}),
+        ...(parsed.date ? { date: parsed.date } : {}),
+        ...(parsed.paymentMethod ? { paymentMethod: parsed.paymentMethod } : {}),
+      }));
+      setShowSmsPanel(false);
+      setSmsText('');
+    } catch {
+      setSmsError('לא הצלחתי לנתח את ה-SMS. בדוק את הטקסט ונסה שוב.');
+    } finally {
+      setIsSmsLoading(false);
     }
   };
 
@@ -256,6 +284,41 @@ export const TransactionForm: React.FC<Props> = ({ onAdd, onUpdate, onCancelEdit
             rows={2}
           />
         </div>
+
+        {type === 'expense' && (
+          <div className="md:col-span-2">
+            <button
+              type="button"
+              onClick={() => { setShowSmsPanel(v => !v); setSmsError(''); }}
+              className="text-sm flex items-center gap-1.5 text-purple-600 hover:text-purple-800 transition-colors"
+            >
+              <MessageSquare size={14} />
+              {showSmsPanel ? 'סגור ניתוח SMS' : 'מלא אוטומטית מ-SMS'}
+            </button>
+            {showSmsPanel && (
+              <div className="mt-2 p-3 bg-purple-50 border border-purple-200 rounded-lg space-y-2">
+                <p className="text-xs text-purple-700">הדבק SMS מבנק / כרטיס אשראי — הבינה המלאכותית תמלא את הפרטים אוטומטית.</p>
+                <textarea
+                  value={smsText}
+                  onChange={e => setSmsText(e.target.value)}
+                  placeholder="לדוגמה: חיוב כרטיס 1234 ב-250 ₪ בתאריך 01/07/25 - רמי לוי"
+                  className="w-full p-2 border border-purple-300 rounded text-sm focus:ring-2 focus:ring-purple-400 outline-none"
+                  rows={3}
+                />
+                {smsError && <p className="text-red-500 text-xs">{smsError}</p>}
+                <button
+                  type="button"
+                  onClick={handleSmsFill}
+                  disabled={isSmsLoading || !smsText.trim()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 disabled:opacity-50 transition-colors"
+                >
+                  {isSmsLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                  {isSmsLoading ? 'מנתח...' : 'ניתוח אוטומטי 🤖'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {type === 'expense' && (
            <div className="flex items-center gap-2 md:col-span-2">
