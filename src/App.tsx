@@ -91,8 +91,21 @@ export default function App() {
   // Auth State
   const [user, setUser] = useState<any>(null);
 
-  // Load local data on mount
+  // Keep cloud mode enabled by default.
   useEffect(() => {
+    setIsCloudMode(true);
+  }, []);
+
+  // Load cached data only after a user is authenticated.
+  useEffect(() => {
+    if (!user) {
+      setTransactions([]);
+      setGoals([]);
+      setAdvice('');
+      setLastSync(null);
+      return;
+    }
+
     const savedData = localStorage.getItem(STORAGE_KEY);
 
     if (savedData) {
@@ -104,9 +117,7 @@ export default function App() {
         console.error('Failed to parse saved data', e);
       }
     }
-
-    setIsCloudMode(true);
-  }, []);
+  }, [user]);
 
   // Sync on mount if cloud mode AND user is logged in
   useEffect(() => {
@@ -117,8 +128,9 @@ export default function App() {
 
   // Save data locally on change (as backup/cache)
   useEffect(() => {
+    if (!user) return;
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ transactions, goals }));
-  }, [transactions, goals]);
+  }, [transactions, goals, user]);
 
   // Logic to import fixed expenses
   const importFixedExpenses = async (auto = false) => {
@@ -401,7 +413,13 @@ export default function App() {
 
   const handleLogout = () => {
     setUser(null);
+    setTransactions([]);
+    setGoals([]);
+    setAdvice('');
+    setLastSync(null);
+    setView('dashboard');
     localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+    localStorage.removeItem(STORAGE_KEY);
     if (window.google && window.google.accounts) {
       window.google.accounts.id.disableAutoSelect();
     }
@@ -584,37 +602,50 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Nav */}
-      <nav className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-          {[
-            { id: 'dashboard', label: 'מבט על', icon: LayoutDashboard },
-            { id: 'income', label: 'הכנסות', icon: TrendingUp },
-            { id: 'expenses', label: 'הוצאות', icon: TrendingDown },
-            { id: 'goals', label: 'יעדים', icon: Target },
-            { id: 'advisor', label: 'יועץ חכם', icon: Bot },
-            { id: 'settings', label: 'הגדרות', icon: SettingsIcon },
-          ].map(item => (
-            <button
-              key={item.id}
-              onClick={() => handleViewChange(item.id as typeof view)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                view === item.id
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-              }`}
-            >
-              <item.icon size={16} />
-              {item.label}
-            </button>
-          ))}
-        </div>
-      </nav>
+      {user && (
+        <nav className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+            {[
+              { id: 'dashboard', label: 'מבט על', icon: LayoutDashboard },
+              { id: 'income', label: 'הכנסות', icon: TrendingUp },
+              { id: 'expenses', label: 'הוצאות', icon: TrendingDown },
+              { id: 'goals', label: 'יעדים', icon: Target },
+              { id: 'advisor', label: 'יועץ חכם', icon: Bot },
+              { id: 'settings', label: 'הגדרות', icon: SettingsIcon },
+            ].map(item => (
+              <button
+                key={item.id}
+                onClick={() => handleViewChange(item.id as typeof view)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                  view === item.id
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                }`}
+              >
+                <item.icon size={16} />
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </nav>
+      )}
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
 
-        {/* Dashboard View */}
-        {view === 'dashboard' && (
+        {!user && (
+          <div className="bg-white rounded-2xl shadow-sm border border-blue-100 p-8 text-center mt-8">
+            <h2 className="text-2xl font-bold text-gray-800 mb-3">נדרשת התחברות</h2>
+            <p className="text-gray-600 mb-6">כדי לצפות בנתונים האישיים, יש להתחבר עם חשבון Google מאושר.</p>
+            <button
+              onClick={handleLogin}
+              className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Login with Google
+            </button>
+          </div>
+        )}
+
+        {user && view === 'dashboard' && (
           <div className="animate-fade-in space-y-6">
             <SummaryCards
               income={summary.totalIncome}
@@ -663,8 +694,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Income View */}
-        {view === 'income' && (
+        {user && view === 'income' && (
           <div className="animate-fade-in">
             <TransactionForm
               onAdd={addTransaction}
@@ -678,8 +708,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Expenses View */}
-        {view === 'expenses' && (
+        {user && view === 'expenses' && (
           <div className="animate-fade-in">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
               <h2 className="text-lg font-bold text-gray-700 hidden md:block">ניהול הוצאות</h2>
@@ -746,8 +775,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Goals View */}
-        {view === 'goals' && (
+        {user && view === 'goals' && (
           <div className="animate-fade-in">
             <Goals
               goals={goals}
@@ -758,8 +786,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Advisor View */}
-        {view === 'advisor' && (
+        {user && view === 'advisor' && (
           <div className="animate-fade-in max-w-2xl mx-auto">
             <div className="bg-white rounded-2xl shadow-sm border border-indigo-100 overflow-hidden">
               <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-8 text-white text-center">
@@ -825,8 +852,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Settings View */}
-        {view === 'settings' && (
+        {user && view === 'settings' && (
           <Settings
             onSync={handleSync}
             transactions={transactions}
