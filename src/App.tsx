@@ -473,6 +473,18 @@ export default function App() {
     });
   };
 
+  const isSameFixedSeries = (t: Transaction, baseTransaction: Transaction) => {
+    return (
+      t.type === 'expense' &&
+      t.isFixed &&
+      t.category === baseTransaction.category &&
+      t.subCategory === baseTransaction.subCategory &&
+      t.member === baseTransaction.member &&
+      (t.paymentMethod || '') === (baseTransaction.paymentMethod || '') &&
+      (t.cardType || '') === (baseTransaction.cardType || '')
+    );
+  };
+
   const confirmStopFixedExpenseRange = async () => {
     if (!fixedStopDialog) return;
 
@@ -489,14 +501,7 @@ export default function App() {
     }
 
     const updated = transactions.filter((t) => {
-      const sameSeries =
-        t.type === 'expense' &&
-        t.isFixed &&
-        t.category === baseTransaction.category &&
-        t.subCategory === baseTransaction.subCategory &&
-        t.member === baseTransaction.member &&
-        (t.paymentMethod || '') === (baseTransaction.paymentMethod || '') &&
-        (t.cardType || '') === (baseTransaction.cardType || '');
+      const sameSeries = isSameFixedSeries(t, baseTransaction);
 
       if (!sameSeries) return true;
 
@@ -519,6 +524,34 @@ export default function App() {
     }
     await syncDataToCloud(updated, goals);
     alert(`הוסרו ${removedCount} מופעים של ההוצאה הקבועה בין ${fromMonth} ל-${toMonth}.`);
+  };
+
+  const confirmStopFixedExpensePermanent = async () => {
+    if (!fixedStopDialog) return;
+
+    const { transaction: baseTransaction } = fixedStopDialog;
+
+    const shouldProceed = window.confirm(
+      `להסיר לצמיתות את ההוצאה הקבועה "${baseTransaction.subCategory || baseTransaction.category}" מכל החודשים?`
+    );
+
+    if (!shouldProceed) return;
+
+    const updated = transactions.filter((t) => !isSameFixedSeries(t, baseTransaction));
+    const removedCount = transactions.length - updated.length;
+
+    if (removedCount <= 0) {
+      alert('לא נמצאו מופעים להסרה.');
+      return;
+    }
+
+    setTransactions(updated);
+    setFixedStopDialog(null);
+    if (editingTransaction && !updated.some((t) => t.id === editingTransaction.id)) {
+      setEditingTransaction(null);
+    }
+    await syncDataToCloud(updated, goals);
+    alert(`הוסרו לצמיתות ${removedCount} מופעים של ההוצאה הקבועה מכל החודשים.`);
   };
 
   const addGoal = async (g: Omit<Goal, 'id'>) => {
@@ -1170,6 +1203,12 @@ export default function App() {
                   className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700"
                 >
                   ביטול
+                </button>
+                <button
+                  onClick={confirmStopFixedExpensePermanent}
+                  className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white"
+                >
+                  הסר לצמיתות
                 </button>
                 <button
                   onClick={confirmStopFixedExpenseRange}
