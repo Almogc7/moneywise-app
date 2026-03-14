@@ -529,15 +529,24 @@ export default function App() {
   const confirmStopFixedExpensePermanent = async () => {
     if (!fixedStopDialog) return;
 
-    const { transaction: baseTransaction } = fixedStopDialog;
+    const { transaction: baseTransaction, fromMonth } = fixedStopDialog;
+
+    if (!/^\d{4}-\d{2}$/.test(fromMonth)) {
+      alert('פורמט חודש לא תקין. יש לבחור חודש התחלה.');
+      return;
+    }
 
     const shouldProceed = window.confirm(
-      `להסיר לצמיתות את ההוצאה הקבועה "${baseTransaction.subCategory || baseTransaction.category}" מכל החודשים?`
+      `להסיר לצמיתות את ההוצאה הקבועה "${baseTransaction.subCategory || baseTransaction.category}" מחודש ${fromMonth} והלאה?\nחודשים קודמים יישארו ללא שינוי.`
     );
 
     if (!shouldProceed) return;
 
-    const updated = transactions.filter((t) => !isSameFixedSeries(t, baseTransaction));
+    const updated = transactions.filter((t) => {
+      if (!isSameFixedSeries(t, baseTransaction)) return true;
+      const txMonth = t.date.slice(0, 7);
+      return txMonth < fromMonth;
+    });
     const removedCount = transactions.length - updated.length;
 
     if (removedCount <= 0) {
@@ -551,7 +560,7 @@ export default function App() {
       setEditingTransaction(null);
     }
     await syncDataToCloud(updated, goals);
-    alert(`הוסרו לצמיתות ${removedCount} מופעים של ההוצאה הקבועה מכל החודשים.`);
+    alert(`הוסרו לצמיתות ${removedCount} מופעים של ההוצאה הקבועה מחודש ${fromMonth} והלאה.`);
   };
 
   const addGoal = async (g: Omit<Goal, 'id'>) => {
@@ -1175,6 +1184,7 @@ export default function App() {
                 {' '}
                 <span className="font-semibold text-gray-800">{fixedStopDialog.transaction.subCategory || fixedStopDialog.transaction.category}</span>
               </p>
+              <p className="text-xs text-gray-500 mb-4">הסרה לצמיתות שומרת היסטוריה ישנה ומסירה מהחודש הנבחר והלאה בלבד.</p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
                 <div>
@@ -1208,7 +1218,7 @@ export default function App() {
                   onClick={confirmStopFixedExpensePermanent}
                   className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white"
                 >
-                  הסר לצמיתות
+                  הסר לצמיתות (מהחודש הנבחר)
                 </button>
                 <button
                   onClick={confirmStopFixedExpenseRange}
