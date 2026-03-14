@@ -39,6 +39,14 @@ export interface BudgetLimit {
   limit: number;
 }
 
+export interface CardAccountMapping {
+  suffix: string;
+  member: Member;
+  paymentMethod?: PaymentMethod;
+  cardType?: CardType;
+  label?: string;
+}
+
 export const CATEGORIES = {
   income: ['משכורת', 'בונוס', 'החזר', 'קצבת ילדים', 'השקעות', 'אחר'],
   expense: [

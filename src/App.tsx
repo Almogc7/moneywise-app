@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import type { Transaction, Goal, TransactionType, FinancialSummary, Member, BudgetLimit } from './types';
+import type { Transaction, Goal, TransactionType, FinancialSummary, Member, BudgetLimit, CardAccountMapping } from './types';
 import { MEMBERS } from './types';
 import { SummaryCards } from './components/SummaryCards';
 import { TransactionForm } from './components/TransactionForm';
@@ -42,6 +42,7 @@ declare global {
 const STORAGE_KEY = 'moneywise_data_v1';
 const AUTH_TOKEN_STORAGE_KEY = 'moneywise_google_id_token';
 const BUDGETS_KEY = 'moneywise_budgets_v1';
+const CARD_MAPPINGS_KEY = 'moneywise_card_mappings_v1';
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 const renderGoogleSignInButton = (elementId: string, width: number) => {
@@ -115,6 +116,51 @@ const formatDateDDMMYYYY = (rawDate: string) => {
   return rawDate;
 };
 
+const normalizeDatePart = (rawDate: string) => {
+  const normalized = rawDate?.trim().replace(/\//g, '-') || '';
+  const isoLikeMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})/);
+
+  if (isoLikeMatch) {
+    return `${isoLikeMatch[1]}-${isoLikeMatch[2]}-${isoLikeMatch[3]}`;
+  }
+
+  const parsed = new Date(rawDate);
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const normalizeText = (text?: string) => (text || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+const isPotentialDuplicate = (existing: Transaction, incoming: Omit<Transaction, 'id'>) => {
+  if (existing.type !== incoming.type) return false;
+  if (Math.abs(existing.amount - incoming.amount) > 0.01) return false;
+
+  const existingDate = normalizeDatePart(existing.date);
+  const incomingDate = normalizeDatePart(incoming.date);
+  if (!existingDate || !incomingDate) return false;
+
+  const dayDiff = Math.abs(
+    Math.floor((new Date(existingDate).getTime() - new Date(incomingDate).getTime()) / (1000 * 60 * 60 * 24))
+  );
+
+  if (dayDiff > 3) return false;
+
+  const existingSub = normalizeText(existing.subCategory);
+  const incomingSub = normalizeText(incoming.subCategory);
+  const merchantSimilar = existingSub && incomingSub
+    ? existingSub.includes(incomingSub) || incomingSub.includes(existingSub)
+    : false;
+
+  const sameCategory = existing.category === incoming.category;
+  const sameMember = existing.member === incoming.member;
+
+  return merchantSimilar || (sameCategory && sameMember);
+};
+
 export default function App() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -140,6 +186,7 @@ export default function App() {
   // Auth State
   const [user, setUser] = useState<any>(null);
   const [budgetLimits, setBudgetLimits] = useState<BudgetLimit[]>([]);
+  const [cardMappings, setCardMappings] = useState<CardAccountMapping[]>([]);
 
   // Keep cloud mode enabled by default.
   useEffect(() => {
@@ -174,6 +221,15 @@ export default function App() {
         setBudgetLimits(JSON.parse(savedBudgets));
       } catch (e) {
         console.error('Failed to parse budget limits', e);
+      }
+    }
+
+    const savedCardMappings = localStorage.getItem(CARD_MAPPINGS_KEY);
+    if (savedCardMappings) {
+      try {
+        setCardMappings(JSON.parse(savedCardMappings));
+      } catch (e) {
+        console.error('Failed to parse card mappings', e);
       }
     }
   }, [user]);
@@ -371,6 +427,18 @@ export default function App() {
 
   // Handlers
   const addTransaction = async (t: Omit<Transaction, 'id'>) => {
+    const possibleDuplicates = transactions.filter(existing => isPotentialDuplicate(existing, t));
+
+    if (possibleDuplicates.length > 0) {
+      const sample = possibleDuplicates[0];
+      const message = `נראה שיש כבר עסקה דומה:\n${formatDateDDMMYYYY(sample.date)} | ${sample.subCategory || sample.category} | ₪${sample.amount.toLocaleString()}\n\nהאם בכל זאת להוסיף עסקה חדשה?`;
+      const shouldContinue = window.confirm(message);
+
+      if (!shouldContinue) {
+        return;
+      }
+    }
+
     const newTransaction = { ...t, id: crypto.randomUUID() };
     const updated = [newTransaction, ...transactions];
     setTransactions(updated);
@@ -413,6 +481,11 @@ export default function App() {
   const handleSaveBudgets = (limits: BudgetLimit[]) => {
     setBudgetLimits(limits);
     localStorage.setItem(BUDGETS_KEY, JSON.stringify(limits));
+  };
+
+  const handleSaveCardMappings = (mappings: CardAccountMapping[]) => {
+    setCardMappings(mappings);
+    localStorage.setItem(CARD_MAPPINGS_KEY, JSON.stringify(mappings));
   };
 
   const handleGetAdvice = async () => {
@@ -879,6 +952,7 @@ export default function App() {
                 editingTransaction={editingTransaction?.type === 'expense' ? editingTransaction : null}
                 type="expense"
                 transactions={transactions}
+                cardMappings={cardMappings}
               />
             </div>
 
@@ -982,6 +1056,8 @@ export default function App() {
             budgetLimits={budgetLimits}
             expensesByCategory={summary.expensesByCategory}
             onSaveBudgets={handleSaveBudgets}
+            cardMappings={cardMappings}
+            onSaveCardMappings={handleSaveCardMappings}
           />
         )}
       </main>

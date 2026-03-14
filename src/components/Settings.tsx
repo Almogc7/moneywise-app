@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { CheckCircle, ExternalLink, Copy, FileDown, FileText } from 'lucide-react';
 import { syncWithSheet } from '../services/sheetService';
-import type { Transaction, BudgetLimit } from '../types';
+import type { Transaction, BudgetLimit, CardAccountMapping } from '../types';
+import { MEMBERS, PAYMENT_METHODS, CARD_TYPES } from '../types';
 import { BudgetLimits } from './BudgetLimits';
 
 interface Props {
@@ -11,6 +12,8 @@ interface Props {
   budgetLimits: BudgetLimit[];
   expensesByCategory: { name: string; value: number }[];
   onSaveBudgets: (limits: BudgetLimit[]) => void;
+  cardMappings: CardAccountMapping[];
+  onSaveCardMappings: (mappings: CardAccountMapping[]) => void;
 }
 
 const APPS_SCRIPT_CODE = `
@@ -207,12 +210,27 @@ export const Settings: React.FC<Props> = ({
   currentMonth,
   budgetLimits,
   expensesByCategory,
-  onSaveBudgets
+  onSaveBudgets,
+  cardMappings,
+  onSaveCardMappings
 }) => {
 
   const [copied, setCopied] = useState(false);
   const [isSettingUp, setIsSettingUp] = useState(false);
   const [setupStatus, setSetupStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [newMapping, setNewMapping] = useState<{
+    suffix: string;
+    member: CardAccountMapping['member'];
+    paymentMethod: NonNullable<CardAccountMapping['paymentMethod']>;
+    cardType: string;
+    label: string;
+  }>({
+    suffix: '',
+    member: 'joint',
+    paymentMethod: 'credit',
+    cardType: '',
+    label: '',
+  });
 
   const handleCopy = () => {
 
@@ -299,6 +317,48 @@ export const Settings: React.FC<Props> = ({
     URL.revokeObjectURL(url);
   };
 
+  const addCardMapping = () => {
+    const suffix = newMapping.suffix.trim().replace(/\D/g, '').slice(-4);
+
+    if (suffix.length !== 4) {
+      alert('יש להזין 4 ספרות אחרונות של כרטיס.');
+      return;
+    }
+
+    const safePaymentMethod = PAYMENT_METHODS.some((m) => m.id === newMapping.paymentMethod)
+      ? newMapping.paymentMethod
+      : 'credit';
+    const safeCardType: CardAccountMapping['cardType'] = CARD_TYPES.some((c) => c.id === newMapping.cardType)
+      ? (newMapping.cardType as CardAccountMapping['cardType'])
+      : undefined;
+
+    const mappingToSave: CardAccountMapping = {
+      suffix,
+      member: newMapping.member,
+      paymentMethod: safePaymentMethod,
+      cardType: safeCardType,
+      label: newMapping.label?.trim() || undefined,
+    };
+
+    const updated: CardAccountMapping[] = [
+      ...cardMappings.filter((m) => m.suffix !== suffix),
+      mappingToSave,
+    ];
+
+    onSaveCardMappings(updated);
+    setNewMapping({
+      suffix: '',
+      member: 'joint',
+      paymentMethod: 'credit',
+      cardType: '',
+      label: '',
+    });
+  };
+
+  const deleteCardMapping = (suffix: string) => {
+    onSaveCardMappings(cardMappings.filter((m) => m.suffix !== suffix));
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 p-4">
 
@@ -307,6 +367,90 @@ export const Settings: React.FC<Props> = ({
         expensesByCategory={expensesByCategory}
         onSave={onSaveBudgets}
       />
+
+      <div className="bg-white rounded-xl shadow-sm border p-6">
+
+        <h2 className="text-2xl font-bold mb-4">מיפוי כרטיסים לחשבון</h2>
+        <p className="text-sm text-gray-500 mb-4">הגדרה זו תשמש את מילוי ה-SMS האוטומטי כדי לבחור שיוך/כרטיס בצורה חכמה.</p>
+
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-2 mb-3">
+          <input
+            value={newMapping.suffix}
+            onChange={(e) => setNewMapping({ ...newMapping, suffix: e.target.value })}
+            placeholder="4 ספרות אחרונות"
+            className="p-2 border border-gray-200 rounded-lg text-sm"
+          />
+
+          <select
+            value={newMapping.member}
+            onChange={(e) => setNewMapping({ ...newMapping, member: e.target.value as CardAccountMapping['member'] })}
+            className="p-2 border border-gray-200 rounded-lg text-sm"
+          >
+            {MEMBERS.map((m) => (
+              <option key={m.id} value={m.id}>{m.label}</option>
+            ))}
+          </select>
+
+          <select
+            value={newMapping.paymentMethod || 'credit'}
+            onChange={(e) => setNewMapping({ ...newMapping, paymentMethod: e.target.value as NonNullable<CardAccountMapping['paymentMethod']> })}
+            className="p-2 border border-gray-200 rounded-lg text-sm"
+          >
+            {PAYMENT_METHODS.map((m) => (
+              <option key={m.id} value={m.id}>{m.label}</option>
+            ))}
+          </select>
+
+          <select
+            value={newMapping.cardType || ''}
+            onChange={(e) => setNewMapping({ ...newMapping, cardType: e.target.value })}
+            className="p-2 border border-gray-200 rounded-lg text-sm"
+          >
+            <option value="">סוג כרטיס (אופציונלי)</option>
+            {CARD_TYPES.map((c) => (
+              <option key={c.id} value={c.id}>{c.label}</option>
+            ))}
+          </select>
+
+          <button
+            onClick={addCardMapping}
+            className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+          >
+            שמור מיפוי
+          </button>
+        </div>
+
+        <input
+          value={newMapping.label || ''}
+          onChange={(e) => setNewMapping({ ...newMapping, label: e.target.value })}
+          placeholder="תיאור/כינוי (אופציונלי)"
+          className="w-full p-2 border border-gray-200 rounded-lg text-sm mb-4"
+        />
+
+        <div className="space-y-2">
+          {cardMappings.length === 0 && <p className="text-sm text-gray-400">אין מיפויי כרטיסים עדיין.</p>}
+          {cardMappings.map((m) => (
+            <div key={m.suffix} className="flex items-center justify-between border rounded-lg p-3">
+              <div className="text-sm text-gray-700">
+                <strong>****{m.suffix}</strong>
+                {' · '}
+                {MEMBERS.find((x) => x.id === m.member)?.label || 'משותף'}
+                {' · '}
+                {PAYMENT_METHODS.find((x) => x.id === m.paymentMethod)?.label || 'כרטיס אשראי'}
+                {m.cardType ? ` · ${CARD_TYPES.find((x) => x.id === m.cardType)?.label || m.cardType}` : ''}
+                {m.label ? ` · ${m.label}` : ''}
+              </div>
+              <button
+                onClick={() => deleteCardMapping(m.suffix)}
+                className="text-sm text-red-600 hover:underline"
+              >
+                מחק
+              </button>
+            </div>
+          ))}
+        </div>
+
+      </div>
 
       <div className="bg-white rounded-xl shadow-sm border p-6">
 

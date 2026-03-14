@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { Transaction, TransactionType, Member } from '../types';
+import type { Transaction, TransactionType, Member, CardAccountMapping } from '../types';
 import { CATEGORIES, MEMBERS, PAYMENT_METHODS, CARD_TYPES } from '../types';
 import { Plus, Loader2, Save, X, MessageSquare, Sparkles } from 'lucide-react';
 import { parseTransactionFromSMS } from '../services/geminiService';
@@ -11,9 +11,10 @@ interface Props {
   editingTransaction?: Transaction | null;
   type: TransactionType;
   transactions?: Transaction[]; // For suggestions
+  cardMappings?: CardAccountMapping[];
 }
 
-export const TransactionForm: React.FC<Props> = ({ onAdd, onUpdate, onCancelEdit, editingTransaction, type, transactions = [] }) => {
+export const TransactionForm: React.FC<Props> = ({ onAdd, onUpdate, onCancelEdit, editingTransaction, type, transactions = [], cardMappings = [] }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSmsPanel, setShowSmsPanel] = useState(false);
@@ -107,7 +108,21 @@ export const TransactionForm: React.FC<Props> = ({ onAdd, onUpdate, onCancelEdit
     }
   };
 
-  const inferMemberFromSms = (text: string): Member => {
+  const findCardMappingFromSms = (text: string): CardAccountMapping | null => {
+    const normalized = text.replace(/\s+/g, '');
+
+    for (const mapping of cardMappings) {
+      const suffix = (mapping.suffix || '').replace(/\D/g, '').slice(-4);
+      if (!suffix || suffix.length !== 4) continue;
+      if (normalized.includes(suffix)) {
+        return mapping;
+      }
+    }
+
+    return null;
+  };
+
+  const inferMemberFromSms = (text: string, mapping: CardAccountMapping | null): Member => {
     const normalized = text.trim().toLowerCase();
 
     const hasAlmog = normalized.includes('אלמוג') || normalized.includes('almog');
@@ -121,6 +136,10 @@ export const TransactionForm: React.FC<Props> = ({ onAdd, onUpdate, onCancelEdit
       return 'amit';
     }
 
+    if (mapping?.member) {
+      return mapping.member;
+    }
+
     return 'joint';
   };
 
@@ -130,7 +149,8 @@ export const TransactionForm: React.FC<Props> = ({ onAdd, onUpdate, onCancelEdit
     setSmsError('');
     try {
       const parsed = await parseTransactionFromSMS(smsText);
-      const inferredMember = inferMemberFromSms(smsText);
+      const cardMapping = findCardMappingFromSms(smsText);
+      const inferredMember = inferMemberFromSms(smsText, cardMapping);
       const safeCategory = parsed.category && CATEGORIES.expense.includes(parsed.category)
         ? parsed.category
         : 'שונות';
@@ -141,7 +161,8 @@ export const TransactionForm: React.FC<Props> = ({ onAdd, onUpdate, onCancelEdit
         category: safeCategory,
         ...(parsed.subCategory ? { subCategory: parsed.subCategory } : {}),
         ...(parsed.date ? { date: parsed.date } : {}),
-        ...(parsed.paymentMethod ? { paymentMethod: parsed.paymentMethod } : {}),
+        ...(cardMapping?.paymentMethod ? { paymentMethod: cardMapping.paymentMethod } : parsed.paymentMethod ? { paymentMethod: parsed.paymentMethod } : {}),
+        ...(cardMapping?.cardType ? { cardType: cardMapping.cardType } : {}),
         member: inferredMember,
       }));
       setShowSmsPanel(false);
