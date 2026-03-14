@@ -34,7 +34,7 @@ Add these variables in Vercel Project Settings -> Environment Variables:
    Google OAuth Web Client ID used to verify ID tokens in the server API.
 4. `ALLOWED_EMAILS`:
    comma-separated allowlist, for example:
-   `almogcohen701@gmail.com,amitshats@gmail.com`
+   `test@gmail.com,test1@gmail.com`
 5. `VITE_GOOGLE_CLIENT_ID`:
    same value as `GOOGLE_CLIENT_ID`, exposed to the frontend for Google Sign-In.
 
