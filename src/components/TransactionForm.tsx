@@ -18,9 +18,21 @@ export const TransactionForm: React.FC<Props> = ({ onAdd, onUpdate, onCancelEdit
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSmsPanel, setShowSmsPanel] = useState(false);
+  const [showSubCategoryManager, setShowSubCategoryManager] = useState(false);
   const [smsText, setSmsText] = useState('');
   const [isSmsLoading, setIsSmsLoading] = useState(false);
   const [smsError, setSmsError] = useState('');
+  const [hiddenSubCategories, setHiddenSubCategories] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [];
+    const raw = localStorage.getItem(`moneywise_hidden_subcategories_${type}`);
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
   
   const defaultFormData = {
     date: new Date().toISOString().split('T')[0],
@@ -44,8 +56,22 @@ export const TransactionForm: React.FC<Props> = ({ onAdd, onUpdate, onCancelEdit
       .map(t => t.subCategory);
     
     // Return unique values sorted
-    return Array.from(new Set(history)).sort();
-  }, [transactions, type]);
+    return Array.from(new Set(history))
+      .filter(s => !hiddenSubCategories.includes(s))
+      .sort();
+  }, [transactions, type, hiddenSubCategories]);
+
+  useEffect(() => {
+    localStorage.setItem(`moneywise_hidden_subcategories_${type}`, JSON.stringify(hiddenSubCategories));
+  }, [hiddenSubCategories, type]);
+
+  const handleHideSubCategorySuggestion = (value: string) => {
+    setHiddenSubCategories(prev => prev.includes(value) ? prev : [...prev, value]);
+  };
+
+  const clearHiddenSubCategories = () => {
+    setHiddenSubCategories([]);
+  };
 
   // Effect to populate form when editingTransaction changes
   useEffect(() => {
@@ -283,6 +309,44 @@ export const TransactionForm: React.FC<Props> = ({ onAdd, onUpdate, onCancelEdit
               <option key={index} value={suggestion} />
             ))}
           </datalist>
+          {subCategorySuggestions.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowSubCategoryManager(v => !v)}
+              className="mt-2 text-xs text-blue-600 hover:underline"
+            >
+              {showSubCategoryManager ? 'סגור ניהול פירוטים' : 'ניהול פירוטים'}
+            </button>
+          )}
+          {showSubCategoryManager && subCategorySuggestions.length > 0 && (
+            <div className="mt-2 border border-gray-200 rounded-lg p-2 max-h-32 overflow-auto bg-gray-50">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-xs text-gray-600">הסר פירוטים לא בשימוש מההצעות</span>
+                <button
+                  type="button"
+                  onClick={clearHiddenSubCategories}
+                  className="text-xs text-gray-500 hover:text-gray-700"
+                >
+                  איפוס
+                </button>
+              </div>
+              <div className="space-y-1">
+                {subCategorySuggestions.map((suggestion) => (
+                  <div key={suggestion} className="flex items-center justify-between text-xs bg-white border border-gray-200 rounded px-2 py-1">
+                    <span className="truncate">{suggestion}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleHideSubCategorySuggestion(suggestion)}
+                      className="text-red-500 hover:text-red-700"
+                      title="הסר מההצעות"
+                    >
+                      הסר
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div>
