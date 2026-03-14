@@ -135,6 +135,29 @@ const normalizeDatePart = (rawDate: string) => {
 
 const normalizeText = (text?: string) => (text || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
+const getDaysInMonth = (year: number, month1Based: number) => {
+  return new Date(year, month1Based, 0).getDate();
+};
+
+const buildMonthRangeInclusive = (fromMonth: string, toMonth: string) => {
+  if (!/^\d{4}-\d{2}$/.test(fromMonth) || !/^\d{4}-\d{2}$/.test(toMonth) || fromMonth > toMonth) {
+    return [fromMonth];
+  }
+
+  const months: string[] = [];
+  const cursor = new Date(`${fromMonth}-01`);
+  const end = new Date(`${toMonth}-01`);
+
+  while (cursor <= end) {
+    const y = cursor.getFullYear();
+    const m = String(cursor.getMonth() + 1).padStart(2, '0');
+    months.push(`${y}-${m}`);
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+
+  return months;
+};
+
 const isPotentialDuplicate = (existing: Transaction, incoming: Omit<Transaction, 'id'>) => {
   if (existing.type !== incoming.type) return false;
   if (Math.abs(existing.amount - incoming.amount) > 0.01) return false;
@@ -448,8 +471,54 @@ export default function App() {
       }
     }
 
-    const newTransaction = { ...t, id: crypto.randomUUID() };
-    const updated = [newTransaction, ...transactions];
+    const isFixedExpenseWithEndMonth = t.type === 'expense' && !!t.isFixed && !!t.fixedUntil;
+
+    let transactionsToAdd: Transaction[] = [];
+
+    if (isFixedExpenseWithEndMonth) {
+      const baseMonth = (t.date || '').slice(0, 7);
+      const endMonth = t.fixedUntil as string;
+      const day = Number((t.date || '').split('-')[2] || '1');
+      const months = buildMonthRangeInclusive(baseMonth, endMonth);
+
+      transactionsToAdd = months
+        .filter((monthKey) => {
+          return !transactions.some((existing) => {
+            const existingMonth = existing.date.slice(0, 7);
+            return (
+              existingMonth === monthKey &&
+              existing.type === t.type &&
+              existing.category === t.category &&
+              existing.subCategory === t.subCategory &&
+              existing.member === t.member &&
+              (existing.paymentMethod || '') === (t.paymentMethod || '') &&
+              (existing.cardType || '') === (t.cardType || '')
+            );
+          });
+        })
+        .map((monthKey) => {
+          const [yearStr, monthStr] = monthKey.split('-');
+          const year = Number(yearStr);
+          const month1Based = Number(monthStr);
+          const safeDay = Math.min(day, getDaysInMonth(year, month1Based));
+          const date = `${monthKey}-${String(safeDay).padStart(2, '0')}`;
+
+          return {
+            ...t,
+            date,
+            id: crypto.randomUUID(),
+          } as Transaction;
+        });
+
+      if (transactionsToAdd.length === 0) {
+        alert('כל מופעי ההוצאה הקבועה כבר קיימים בטווח החודשים שנבחר.');
+        return;
+      }
+    } else {
+      transactionsToAdd = [{ ...t, id: crypto.randomUUID() } as Transaction];
+    }
+
+    const updated = [...transactionsToAdd, ...transactions];
     setTransactions(updated);
     await syncDataToCloud(updated, goals);
   };
