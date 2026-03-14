@@ -143,7 +143,7 @@ export const Goals: React.FC<Props> = ({ goals, onAddGoal, onUpdateGoal, onDelet
               <div className="flex justify-between items-start mb-2 pl-8">
                 <div>
                   <h3 className="font-bold text-gray-800 text-lg">{goal.name}</h3>
-                  <p className="text-xs text-gray-500">תאריך יעד: {new Date(goal.deadline).toLocaleDateString('he-IL')}</p>
+                  <p className="text-xs text-gray-500">תאריך יעד: {new Date(goal.deadline).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
                 </div>
                 <div className="text-right">
                   <span className="text-xs text-gray-500 block">נותר ליעד</span>

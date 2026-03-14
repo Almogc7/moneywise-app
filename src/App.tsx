@@ -523,7 +523,7 @@ export default function App() {
                 list.map(t => (
                   <tr key={t.id} className={`hover:bg-gray-50 group ${editingTransaction?.id === t.id ? 'bg-blue-50' : ''}`}>
                     <td className="p-4 flex items-center gap-2">
-                      {new Date(t.date).toLocaleDateString('he-IL')}
+                      {new Date(t.date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                       {t.isFixed && (
                         <span title="הוצאה קבועה (מתחדשת אוטומטית)" className="text-blue-500 bg-blue-50 p-1 rounded-full">
                           <Pin size={12} className="fill-blue-500" />
