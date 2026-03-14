@@ -107,18 +107,21 @@ export const TransactionForm: React.FC<Props> = ({ onAdd, onUpdate, onCancelEdit
     }
   };
 
-  const inferMemberFromSms = (text: string, fallback: Member): Member => {
+  const inferMemberFromSms = (text: string): Member => {
     const normalized = text.trim().toLowerCase();
 
-    if (normalized.includes('אלמוג') || normalized.includes('almog')) {
+    const hasAlmog = normalized.includes('אלמוג') || normalized.includes('almog');
+    const hasAmit = normalized.includes('עמית') || normalized.includes('amit');
+
+    if (hasAlmog && !hasAmit) {
       return 'almog';
     }
 
-    if (normalized.includes('עמית') || normalized.includes('amit')) {
+    if (hasAmit && !hasAlmog) {
       return 'amit';
     }
 
-    return fallback;
+    return 'joint';
   };
 
   const handleSmsFill = async () => {
@@ -127,7 +130,7 @@ export const TransactionForm: React.FC<Props> = ({ onAdd, onUpdate, onCancelEdit
     setSmsError('');
     try {
       const parsed = await parseTransactionFromSMS(smsText);
-      const inferredMember = inferMemberFromSms(smsText, (formData.member as Member) || 'joint');
+      const inferredMember = inferMemberFromSms(smsText);
       const safeCategory = parsed.category && CATEGORIES.expense.includes(parsed.category)
         ? parsed.category
         : 'שונות';
