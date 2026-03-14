@@ -14,10 +14,13 @@ export const syncWithSheet = async (
   payload?: { transactions?: Transaction[]; goals?: Goal[] }
 ): Promise<SheetResponse> => {
   try {
+    const idToken = localStorage.getItem('moneywise_google_id_token');
+
     const response = await fetch('/api/sheet', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
       },
       body: JSON.stringify({
         action,
@@ -26,7 +29,16 @@ export const syncWithSheet = async (
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      let errorDetails = '';
+
+      try {
+        const errJson = await response.json();
+        errorDetails = errJson?.message ? ` - ${errJson.message}` : '';
+      } catch {
+        // Ignore JSON parse errors and fall back to status code only.
+      }
+
+      throw new Error(`HTTP error! status: ${response.status}${errorDetails}`);
     }
 
     const data = await response.json();

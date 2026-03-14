@@ -1,73 +1,48 @@
-# React + TypeScript + Vite
+# MoneyWise Web
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Family budget tracking app with Google Sheets sync and Google sign-in based access control.
 
-Currently, two official plugins are available:
+## Local Development
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+1. Install dependencies:
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+2. Run the app:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run dev
 ```
+
+3. Build for production:
+
+```bash
+npm run build
+```
+
+## Vercel Environment Variables
+
+Add these variables in Vercel Project Settings -> Environment Variables:
+
+1. `GOOGLE_SCRIPT_URL`:
+   your deployed Google Apps Script Web App URL.
+2. `MONEYWISE_SECRET`:
+   shared secret that must match `SECRET` in your Apps Script code.
+3. `GOOGLE_CLIENT_ID`:
+   Google OAuth Web Client ID used to verify ID tokens in the server API.
+4. `ALLOWED_EMAILS`:
+   comma-separated allowlist, for example:
+   `almogcohen701@gmail.com,amitshats@gmail.com`
+5. `VITE_GOOGLE_CLIENT_ID`:
+   same value as `GOOGLE_CLIENT_ID`, exposed to the frontend for Google Sign-In.
+
+## Security Model
+
+1. Frontend gets a Google ID token after login.
+2. Frontend sends token to `/api/sheet` in `Authorization: Bearer <token>`.
+3. Vercel API verifies token + checks `ALLOWED_EMAILS`.
+4. Only then API forwards request to Apps Script with server-side `MONEYWISE_SECRET`.
+
+This prevents anonymous users from calling your sheet sync endpoint.

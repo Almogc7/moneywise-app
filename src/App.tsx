@@ -39,6 +39,8 @@ declare global {
 }
 
 const STORAGE_KEY = 'moneywise_data_v1';
+const AUTH_TOKEN_STORAGE_KEY = 'moneywise_google_id_token';
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 // Helper to get previous month YYYY-MM
 const getPreviousMonth = (dateStr: string) => {
@@ -73,7 +75,6 @@ export default function App() {
 
   // Auth State
   const [user, setUser] = useState<any>(null);
-  const allowedEmails = ['almogcohen701@gmail.com', 'amitshats@gmail.com'];
 
   // Load local data on mount
   useEffect(() => {
@@ -248,9 +249,11 @@ export default function App() {
         setLastSync(new Date());
       } else {
         console.error('Sync failed:', res.message);
+        alert(`Sync failed: ${res.message || 'Unknown error'}`);
       }
     } catch (err) {
       console.error('Sync failed:', err);
+      alert('Sync failed unexpectedly. Please try again.');
     } finally {
       setIsSyncing(false);
     }
@@ -340,8 +343,13 @@ export default function App() {
   useEffect(() => {
     const initializeGoogleAuth = () => {
       if (window.google && window.google.accounts) {
+        if (!GOOGLE_CLIENT_ID) {
+          console.warn('Missing VITE_GOOGLE_CLIENT_ID. Google login is disabled.');
+          return;
+        }
+
         window.google.accounts.id.initialize({
-          client_id: process.env.REACT_APP_GOOGLE_CLIENT_ID || 'YOUR_CLIENT_ID', // Set in .env or Vercel env
+          client_id: GOOGLE_CLIENT_ID,
           callback: handleCredentialResponse
         });
       }
@@ -355,15 +363,22 @@ export default function App() {
   }, []);
 
   const handleCredentialResponse = (response: any) => {
-    const decoded = JSON.parse(atob(response.credential.split('.')[1]));
-    if (allowedEmails.includes(decoded.email)) {
+    try {
+      const decoded = JSON.parse(atob(response.credential.split('.')[1]));
       setUser(decoded);
-    } else {
-      alert('Access denied. This app is only for authorized users.');
+      localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, response.credential);
+    } catch {
+      localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+      alert('Login failed: invalid Google credential response.');
     }
   };
 
   const handleLogin = () => {
+    if (!GOOGLE_CLIENT_ID) {
+      alert('Google Client ID is missing. Please set VITE_GOOGLE_CLIENT_ID in Vercel.');
+      return;
+    }
+
     if (window.google && window.google.accounts) {
       window.google.accounts.id.prompt();
     }
@@ -371,6 +386,7 @@ export default function App() {
 
   const handleLogout = () => {
     setUser(null);
+    localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
     if (window.google && window.google.accounts) {
       window.google.accounts.id.disableAutoSelect();
     }
