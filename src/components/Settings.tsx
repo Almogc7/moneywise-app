@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
-import { CheckCircle, ExternalLink, Copy } from 'lucide-react';
+import { CheckCircle, ExternalLink, Copy, FileDown, FileText } from 'lucide-react';
 import { syncWithSheet } from '../services/sheetService';
+import type { Transaction } from '../types';
 
 interface Props {
   onSync: () => void;
+  transactions: Transaction[];
+  currentMonth: string;
 }
 
 const APPS_SCRIPT_CODE = `
@@ -195,7 +198,9 @@ function setupSheet(ss) {
 `;
 
 export const Settings: React.FC<Props> = ({
-  onSync
+  onSync,
+  transactions,
+  currentMonth
 }) => {
 
   const [copied, setCopied] = useState(false);
@@ -234,8 +239,90 @@ export const Settings: React.FC<Props> = ({
 
   };
 
+  const exportToCSV = (filter: 'month' | 'year') => {
+    if (!transactions || transactions.length === 0) {
+      alert('אין נתונים לייצוא');
+      return;
+    }
+
+    let dataToExport = [...transactions];
+    let filename = 'moneywise_report.csv';
+
+    if (filter === 'month') {
+      dataToExport = transactions.filter((t) => t.date.startsWith(currentMonth));
+      filename = `moneywise_monthly_report_${currentMonth}.csv`;
+    } else {
+      const year = currentMonth.split('-')[0] || new Date().getFullYear().toString();
+      dataToExport = transactions.filter((t) => t.date.startsWith(year));
+      filename = `moneywise_yearly_report_${year}.csv`;
+    }
+
+    if (dataToExport.length === 0) {
+      alert('לא נמצאו נתונים לתקופה שנבחרה');
+      return;
+    }
+
+    const headers = ['Date', 'Type', 'Category', 'SubCategory', 'Amount', 'Member', 'PaymentMethod', 'CardType', 'IsFixed', 'Notes'];
+    const csvContent = '\uFEFF' + [
+      headers.join(','),
+      ...dataToExport.map((t) => [
+        t.date,
+        t.type === 'income' ? 'הכנסה' : 'הוצאה',
+        `"${t.category}"`,
+        `"${t.subCategory}"`,
+        t.amount,
+        t.member === 'almog' ? 'אלמוג' : t.member === 'amit' ? 'עמית' : 'משותף',
+        t.paymentMethod || '-',
+        t.cardType || '-',
+        t.isFixed ? 'כן' : 'לא',
+        `"${(t.notes || '').replace(/"/g, '""')}"`
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = filename;
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 p-4">
+
+      <div className="bg-white rounded-xl shadow-sm border p-6">
+
+        <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+          <FileDown className="text-emerald-600" />
+          דוחות וייצוא
+        </h2>
+
+        <div className="flex flex-wrap gap-3">
+
+          <button
+            onClick={() => exportToCSV('month')}
+            className="flex items-center gap-2 px-4 py-2 border rounded-lg text-gray-700 hover:bg-gray-50"
+          >
+            <FileText size={18} />
+            הפקת דוח חודשי
+          </button>
+
+          <button
+            onClick={() => exportToCSV('year')}
+            className="flex items-center gap-2 px-4 py-2 border rounded-lg text-gray-700 hover:bg-gray-50"
+          >
+            <FileText size={18} />
+            הפקת דוח שנתי
+          </button>
+
+        </div>
+
+      </div>
 
       <div className="bg-white rounded-xl shadow-sm border p-6">
 

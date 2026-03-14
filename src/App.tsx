@@ -829,6 +829,8 @@ export default function App() {
         {view === 'settings' && (
           <Settings
             onSync={handleSync}
+            transactions={transactions}
+            currentMonth={currentMonth}
           />
         )}
       </main>
