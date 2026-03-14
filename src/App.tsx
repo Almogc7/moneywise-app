@@ -42,6 +42,29 @@ const STORAGE_KEY = 'moneywise_data_v1';
 const AUTH_TOKEN_STORAGE_KEY = 'moneywise_google_id_token';
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
+const renderGoogleSignInButton = (elementId: string, width: number) => {
+  if (!window.google || !window.google.accounts || !window.google.accounts.id) {
+    return;
+  }
+
+  const target = document.getElementById(elementId);
+
+  if (!target) {
+    return;
+  }
+
+  target.innerHTML = '';
+
+  window.google.accounts.id.renderButton(target, {
+    type: 'standard',
+    theme: 'outline',
+    size: 'medium',
+    text: 'signin_with',
+    shape: 'pill',
+    width,
+  });
+};
+
 const decodeGoogleJwtPayload = (token: string) => {
   const payloadPart = token.split('.')[1];
 
@@ -379,6 +402,9 @@ export default function App() {
           client_id: GOOGLE_CLIENT_ID,
           callback: handleCredentialResponse
         });
+
+        renderGoogleSignInButton('google-signin-button-header', 220);
+        renderGoogleSignInButton('google-signin-button-gate', 240);
       }
     };
 
@@ -388,6 +414,13 @@ export default function App() {
       window.addEventListener('load', initializeGoogleAuth);
     }
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      renderGoogleSignInButton('google-signin-button-header', 220);
+      renderGoogleSignInButton('google-signin-button-gate', 240);
+    }
+  }, [user]);
 
   const handleCredentialResponse = (response: any) => {
     try {
@@ -407,7 +440,13 @@ export default function App() {
     }
 
     if (window.google && window.google.accounts) {
-      window.google.accounts.id.prompt();
+      window.google.accounts.id.prompt((notification: any) => {
+        if (notification?.isNotDisplayed?.() || notification?.isSkippedMoment?.()) {
+          alert('Google login popup was blocked or skipped. Please click the Google sign-in button.');
+        }
+      });
+    } else {
+      alert('Google Sign-In is not ready yet. Please refresh and try again.');
     }
   };
 
@@ -596,7 +635,10 @@ export default function App() {
                 <button onClick={handleLogout} className="text-sm text-red-600 hover:underline">Logout</button>
               </div>
             ) : (
-              <button onClick={handleLogin} className="text-sm bg-blue-600 text-white px-3 py-1 rounded">Login with Google</button>
+              <div className="flex items-center gap-2">
+                <div id="google-signin-button-header"></div>
+                <button onClick={handleLogin} className="text-xs text-blue-700 hover:underline">פתיחה ידנית</button>
+              </div>
             )}
           </div>
         </div>
@@ -636,12 +678,15 @@ export default function App() {
           <div className="bg-white rounded-2xl shadow-sm border border-blue-100 p-8 text-center mt-8">
             <h2 className="text-2xl font-bold text-gray-800 mb-3">נדרשת התחברות</h2>
             <p className="text-gray-600 mb-6">כדי לצפות בנתונים האישיים, יש להתחבר עם חשבון Google מאושר.</p>
-            <button
-              onClick={handleLogin}
-              className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Login with Google
-            </button>
+            <div className="flex flex-col items-center gap-3">
+              <div id="google-signin-button-gate"></div>
+              <button
+                onClick={handleLogin}
+                className="text-sm text-blue-700 hover:underline"
+              >
+                פתיחה ידנית של חלון התחברות
+              </button>
+            </div>
           </div>
         )}
 
