@@ -30,7 +30,9 @@ import {
   Users,
   ChevronLeft,
   ChevronRight,
-  ShieldAlert
+  ShieldAlert,
+  Moon,
+  Sun
 } from 'lucide-react';
 
 declare global {
@@ -43,6 +45,7 @@ const STORAGE_KEY = 'moneywise_data_v1';
 const AUTH_TOKEN_STORAGE_KEY = 'moneywise_google_id_token';
 const BUDGETS_KEY = 'moneywise_budgets_v1';
 const CARD_MAPPINGS_KEY = 'moneywise_card_mappings_v1';
+const THEME_KEY = 'moneywise_theme';
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 const renderGoogleSignInButton = (elementId: string, width: number) => {
@@ -191,6 +194,13 @@ export default function App() {
   const [currentMonth, setCurrentMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
   const [advisorLoading, setAdvisorLoading] = useState(false);
   const [advice, setAdvice] = useState<string>('');
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const savedTheme = localStorage.getItem(THEME_KEY);
+    if (savedTheme === 'dark') return true;
+    if (savedTheme === 'light') return false;
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+  });
 
   // Dashboard state
   const [expenseChartType, setExpenseChartType] = useState<'pie' | 'bar'>('pie');
@@ -220,6 +230,11 @@ export default function App() {
   useEffect(() => {
     setIsCloudMode(true);
   }, []);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', isDarkMode);
+    localStorage.setItem(THEME_KEY, isDarkMode ? 'dark' : 'light');
+  }, [isDarkMode]);
 
   // Load cached data only after a user is authenticated.
   useEffect(() => {
@@ -905,6 +920,14 @@ export default function App() {
             </div>
 
             <div className="h-6 w-px bg-gray-200 mx-1"></div>
+
+            <button
+              onClick={() => setIsDarkMode((prev) => !prev)}
+              className="p-2 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors"
+              title={isDarkMode ? 'מצב בהיר' : 'מצב כהה'}
+            >
+              {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
 
             {/* Date Controls */}
             <div className="flex items-center bg-white rounded-lg shadow-sm border border-gray-200 p-1" dir="ltr">

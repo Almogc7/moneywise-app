@@ -1,1 +1,70 @@
 @import "tailwindcss";
+
+:root {
+	color-scheme: light;
+}
+
+html.dark {
+	color-scheme: dark;
+}
+
+html.dark body {
+	background-color: #020617;
+	color: #e5e7eb;
+}
+
+html.dark .bg-slate-50 {
+	background-color: #020617 !important;
+}
+
+html.dark .bg-white {
+	background-color: #0f172a !important;
+}
+
+html.dark .bg-gray-50,
+html.dark .bg-gray-100 {
+	background-color: #111827 !important;
+}
+
+html.dark .border,
+html.dark .border-gray-100,
+html.dark .border-gray-200,
+html.dark .border-blue-100,
+html.dark .border-indigo-100 {
+	border-color: #1f2937 !important;
+}
+
+html.dark .text-slate-900,
+html.dark .text-gray-800,
+html.dark .text-gray-700,
+html.dark .text-gray-600,
+html.dark .text-gray-500,
+html.dark .text-gray-400 {
+	color: #cbd5e1 !important;
+}
+
+html.dark .hover\:bg-gray-50:hover,
+html.dark .hover\:bg-gray-100:hover,
+html.dark .hover\:bg-blue-50:hover {
+	background-color: #1f2937 !important;
+}
+
+html.dark input,
+html.dark select,
+html.dark textarea {
+	background-color: #0b1220 !important;
+	color: #e5e7eb !important;
+	border-color: #334155 !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+	color: #94a3b8 !important;
+}
+
+html.dark .shadow-sm,
+html.dark .shadow-md,
+html.dark .shadow-lg,
+html.dark .shadow-2xl {
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35) !important;
+}
