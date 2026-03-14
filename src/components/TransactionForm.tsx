@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { Transaction, TransactionType } from '../types';
+import type { Transaction, TransactionType, Member } from '../types';
 import { CATEGORIES, MEMBERS, PAYMENT_METHODS, CARD_TYPES } from '../types';
 import { Plus, Loader2, Save, X, MessageSquare, Sparkles } from 'lucide-react';
 import { parseTransactionFromSMS } from '../services/geminiService';
@@ -107,12 +107,27 @@ export const TransactionForm: React.FC<Props> = ({ onAdd, onUpdate, onCancelEdit
     }
   };
 
+  const inferMemberFromSms = (text: string, fallback: Member): Member => {
+    const normalized = text.trim().toLowerCase();
+
+    if (normalized.includes('אלמוג') || normalized.includes('almog')) {
+      return 'almog';
+    }
+
+    if (normalized.includes('עמית') || normalized.includes('amit')) {
+      return 'amit';
+    }
+
+    return fallback;
+  };
+
   const handleSmsFill = async () => {
     if (!smsText.trim()) return;
     setIsSmsLoading(true);
     setSmsError('');
     try {
       const parsed = await parseTransactionFromSMS(smsText);
+      const inferredMember = inferMemberFromSms(smsText, (formData.member as Member) || 'joint');
       const safeCategory = parsed.category && CATEGORIES.expense.includes(parsed.category)
         ? parsed.category
         : 'שונות';
@@ -124,6 +139,7 @@ export const TransactionForm: React.FC<Props> = ({ onAdd, onUpdate, onCancelEdit
         ...(parsed.subCategory ? { subCategory: parsed.subCategory } : {}),
         ...(parsed.date ? { date: parsed.date } : {}),
         ...(parsed.paymentMethod ? { paymentMethod: parsed.paymentMethod } : {}),
+        member: inferredMember,
       }));
       setShowSmsPanel(false);
       setSmsText('');
