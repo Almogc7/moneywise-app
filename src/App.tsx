@@ -42,6 +42,21 @@ const STORAGE_KEY = 'moneywise_data_v1';
 const AUTH_TOKEN_STORAGE_KEY = 'moneywise_google_id_token';
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
+const decodeGoogleJwtPayload = (token: string) => {
+  const payloadPart = token.split('.')[1];
+
+  if (!payloadPart) {
+    throw new Error('Invalid Google credential token payload');
+  }
+
+  const base64 = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
+  const paddedBase64 = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+  const bytes = Uint8Array.from(atob(paddedBase64), (char) => char.charCodeAt(0));
+  const json = new TextDecoder().decode(bytes);
+
+  return JSON.parse(json);
+};
+
 // Helper to get previous month YYYY-MM
 const getPreviousMonth = (dateStr: string) => {
   const date = new Date(dateStr + '-01');
@@ -364,7 +379,7 @@ export default function App() {
 
   const handleCredentialResponse = (response: any) => {
     try {
-      const decoded = JSON.parse(atob(response.credential.split('.')[1]));
+      const decoded = decodeGoogleJwtPayload(response.credential);
       setUser(decoded);
       localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, response.credential);
     } catch {
