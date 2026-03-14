@@ -16,9 +16,11 @@ export const getFinancialAdvice = async (
   summary: FinancialSummary
 ): Promise<string> => {
   try {
-    const apiKey = process.env.API_KEY;
+    const env = import.meta.env as Record<string, string | undefined>;
+    const apiKey = env.VITE_GEMINI_API_KEY?.trim();
+
     if (!apiKey) {
-      return "אנא הגדר מפתח API של Gemini כדי לקבל ייעוץ חכם.";
+      return "לא הוגדר מפתח Gemini. יש להגדיר VITE_GEMINI_API_KEY ב-Vercel.";
     }
 
     const ai = new GoogleGenAI({ apiKey });
