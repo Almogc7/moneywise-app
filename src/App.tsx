@@ -91,6 +91,30 @@ const getPreviousMonth = (dateStr: string) => {
   return `${y}-${m}`;
 };
 
+const formatDateDDMMYYYY = (rawDate: string) => {
+  if (!rawDate) return '';
+
+  const normalized = rawDate.trim().replace(/\//g, '-');
+  const isoLikeMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})/);
+
+  if (isoLikeMatch) {
+    const [, year, month, day] = isoLikeMatch;
+    return `${day}/${month}/${year}`;
+  }
+
+  const parsed = new Date(rawDate);
+
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  }
+
+  return rawDate;
+};
+
 export default function App() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -523,7 +547,7 @@ export default function App() {
                 list.map(t => (
                   <tr key={t.id} className={`hover:bg-gray-50 group ${editingTransaction?.id === t.id ? 'bg-blue-50' : ''}`}>
                     <td className="p-4 flex items-center gap-2">
-                      {t.date.split('-').reverse().join('/')}
+                      {formatDateDDMMYYYY(t.date)}
                       {t.isFixed && (
                         <span title="הוצאה קבועה (מתחדשת אוטומטית)" className="text-blue-500 bg-blue-50 p-1 rounded-full">
                           <Pin size={12} className="fill-blue-500" />
