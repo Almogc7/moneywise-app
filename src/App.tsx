@@ -182,6 +182,11 @@ export default function App() {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [showFixedOnly, setShowFixedOnly] = useState(false);
   const [memberFilter, setMemberFilter] = useState<Member | 'all'>('all');
+  const [fixedStopDialog, setFixedStopDialog] = useState<{
+    transaction: Transaction;
+    fromMonth: string;
+    toMonth: string;
+  } | null>(null);
 
   // Auth State
   const [user, setUser] = useState<any>(null);
@@ -460,19 +465,28 @@ export default function App() {
     await syncDataToCloud(updated, goals);
   };
 
-  const stopFixedExpenseFromMonth = async (baseTransaction: Transaction) => {
-    const monthInput = window.prompt('מאיזה חודש להסיר את ההוצאה הקבועה? (YYYY-MM)', currentMonth);
+  const openStopFixedExpenseDialog = (baseTransaction: Transaction) => {
+    setFixedStopDialog({
+      transaction: baseTransaction,
+      fromMonth: currentMonth,
+      toMonth: currentMonth,
+    });
+  };
 
-    if (!monthInput) return;
+  const confirmStopFixedExpenseRange = async () => {
+    if (!fixedStopDialog) return;
 
-    const fromMonth = monthInput.trim();
-    if (!/^\d{4}-\d{2}$/.test(fromMonth)) {
-      alert('פורמט חודש לא תקין. יש להזין YYYY-MM.');
+    const { transaction: baseTransaction, fromMonth, toMonth } = fixedStopDialog;
+
+    if (!/^\d{4}-\d{2}$/.test(fromMonth) || !/^\d{4}-\d{2}$/.test(toMonth)) {
+      alert('פורמט חודש לא תקין. יש לבחור חודש התחלה וחודש סיום.');
       return;
     }
 
-    const shouldProceed = window.confirm(`להסיר את ההוצאה הקבועה "${baseTransaction.subCategory || baseTransaction.category}" מחודש ${fromMonth} והלאה?`);
-    if (!shouldProceed) return;
+    if (fromMonth > toMonth) {
+      alert('חודש התחלה לא יכול להיות אחרי חודש סיום.');
+      return;
+    }
 
     const updated = transactions.filter((t) => {
       const sameSeries =
@@ -487,22 +501,24 @@ export default function App() {
       if (!sameSeries) return true;
 
       const txMonth = t.date.slice(0, 7);
-      return txMonth < fromMonth;
+      const isInRange = txMonth >= fromMonth && txMonth <= toMonth;
+      return !isInRange;
     });
 
     const removedCount = transactions.length - updated.length;
 
     if (removedCount <= 0) {
-      alert('לא נמצאו הוצאות קבועות תואמות מהחודש שבחרת והלאה.');
+      alert('לא נמצאו מופעים בטווח החודשים שנבחר.');
       return;
     }
 
     setTransactions(updated);
+    setFixedStopDialog(null);
     if (editingTransaction && !updated.some((t) => t.id === editingTransaction.id)) {
       setEditingTransaction(null);
     }
     await syncDataToCloud(updated, goals);
-    alert(`הוסרו ${removedCount} מופעים של ההוצאה הקבועה מחודש ${fromMonth} והלאה.`);
+    alert(`הוסרו ${removedCount} מופעים של ההוצאה הקבועה בין ${fromMonth} ל-${toMonth}.`);
   };
 
   const addGoal = async (g: Omit<Goal, 'id'>) => {
@@ -546,6 +562,7 @@ export default function App() {
     setDeleteConfirmationId(null);
     setShowFixedOnly(false);
     setMemberFilter('all');
+    setFixedStopDialog(null);
   };
 
   // Auth Handlers
@@ -616,6 +633,7 @@ export default function App() {
     setAdvice('');
     setLastSync(null);
     setView('dashboard');
+    setFixedStopDialog(null);
     localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
     localStorage.removeItem(STORAGE_KEY);
     if (window.google && window.google.accounts) {
@@ -706,9 +724,9 @@ export default function App() {
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           {type === 'expense' && t.isFixed && (
                             <button
-                              onClick={() => stopFixedExpenseFromMonth(t)}
+                              onClick={() => openStopFixedExpenseDialog(t)}
                               className="text-gray-400 hover:text-amber-600 transition-colors p-1"
-                              title="הסר קבועה מחודש נבחר"
+                              title="הסר קבועה לטווח חודשים"
                             >
                               <span className="text-xs font-bold">↺</span>
                             </button>
@@ -1113,6 +1131,55 @@ export default function App() {
             cardMappings={cardMappings}
             onSaveCardMappings={handleSaveCardMappings}
           />
+        )}
+
+        {fixedStopDialog && (
+          <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/40">
+            <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-gray-100 p-6">
+              <h3 className="text-lg font-bold text-gray-800 mb-2">הסרת הוצאה קבועה בטווח חודשים</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                בחר טווח חודשים להסרה עבור:
+                {' '}
+                <span className="font-semibold text-gray-800">{fixedStopDialog.transaction.subCategory || fixedStopDialog.transaction.category}</span>
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">מחודש</label>
+                  <input
+                    type="month"
+                    value={fixedStopDialog.fromMonth}
+                    onChange={(e) => setFixedStopDialog((prev) => prev ? { ...prev, fromMonth: e.target.value } : prev)}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">עד חודש</label>
+                  <input
+                    type="month"
+                    value={fixedStopDialog.toMonth}
+                    onChange={(e) => setFixedStopDialog((prev) => prev ? { ...prev, toMonth: e.target.value } : prev)}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setFixedStopDialog(null)}
+                  className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700"
+                >
+                  ביטול
+                </button>
+                <button
+                  onClick={confirmStopFixedExpenseRange}
+                  className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white"
+                >
+                  הסר בטווח
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </main>
     </div>
