@@ -113,10 +113,14 @@ export const TransactionForm: React.FC<Props> = ({ onAdd, onUpdate, onCancelEdit
     setSmsError('');
     try {
       const parsed = await parseTransactionFromSMS(smsText);
+      const safeCategory = parsed.category && CATEGORIES.expense.includes(parsed.category)
+        ? parsed.category
+        : 'שונות';
+
       setFormData(prev => ({
         ...prev,
         ...(parsed.amount ? { amount: parsed.amount } : {}),
-        ...(parsed.category ? { category: parsed.category } : {}),
+        category: safeCategory,
         ...(parsed.subCategory ? { subCategory: parsed.subCategory } : {}),
         ...(parsed.date ? { date: parsed.date } : {}),
         ...(parsed.paymentMethod ? { paymentMethod: parsed.paymentMethod } : {}),
