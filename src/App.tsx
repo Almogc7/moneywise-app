@@ -460,6 +460,51 @@ export default function App() {
     await syncDataToCloud(updated, goals);
   };
 
+  const stopFixedExpenseFromMonth = async (baseTransaction: Transaction) => {
+    const monthInput = window.prompt('מאיזה חודש להסיר את ההוצאה הקבועה? (YYYY-MM)', currentMonth);
+
+    if (!monthInput) return;
+
+    const fromMonth = monthInput.trim();
+    if (!/^\d{4}-\d{2}$/.test(fromMonth)) {
+      alert('פורמט חודש לא תקין. יש להזין YYYY-MM.');
+      return;
+    }
+
+    const shouldProceed = window.confirm(`להסיר את ההוצאה הקבועה "${baseTransaction.subCategory || baseTransaction.category}" מחודש ${fromMonth} והלאה?`);
+    if (!shouldProceed) return;
+
+    const updated = transactions.filter((t) => {
+      const sameSeries =
+        t.type === 'expense' &&
+        t.isFixed &&
+        t.category === baseTransaction.category &&
+        t.subCategory === baseTransaction.subCategory &&
+        t.member === baseTransaction.member &&
+        (t.paymentMethod || '') === (baseTransaction.paymentMethod || '') &&
+        (t.cardType || '') === (baseTransaction.cardType || '');
+
+      if (!sameSeries) return true;
+
+      const txMonth = t.date.slice(0, 7);
+      return txMonth < fromMonth;
+    });
+
+    const removedCount = transactions.length - updated.length;
+
+    if (removedCount <= 0) {
+      alert('לא נמצאו הוצאות קבועות תואמות מהחודש שבחרת והלאה.');
+      return;
+    }
+
+    setTransactions(updated);
+    if (editingTransaction && !updated.some((t) => t.id === editingTransaction.id)) {
+      setEditingTransaction(null);
+    }
+    await syncDataToCloud(updated, goals);
+    alert(`הוסרו ${removedCount} מופעים של ההוצאה הקבועה מחודש ${fromMonth} והלאה.`);
+  };
+
   const addGoal = async (g: Omit<Goal, 'id'>) => {
     const newGoals = [...goals, { ...g, id: crypto.randomUUID() }];
     setGoals(newGoals);
@@ -659,6 +704,15 @@ export default function App() {
                         </div>
                       ) : (
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {type === 'expense' && t.isFixed && (
+                            <button
+                              onClick={() => stopFixedExpenseFromMonth(t)}
+                              className="text-gray-400 hover:text-amber-600 transition-colors p-1"
+                              title="הסר קבועה מחודש נבחר"
+                            >
+                              <span className="text-xs font-bold">↺</span>
+                            </button>
+                          )}
                           <button
                             onClick={() => {
                               setEditingTransaction(t);
